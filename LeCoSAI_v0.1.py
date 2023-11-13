@@ -27,6 +27,9 @@ import math
 ################済み
 #v0.1 カタログと画像の星の対応をクリックでつけ直せるようにする
 
+_squarelength = 200
+_framelength = 50
+
 #def draw_stars(img,stars,color_s):
 def draw_stars(img,stars,color_s,maker):
 	for s_point in stars:
@@ -38,7 +41,7 @@ class MainApplication(tk.Frame):
 		super().__init__(master)
 		self.master = master
 		self.master.title("MOSAIC")
-		self.master.geometry('1000x700')
+		self.master.geometry('1300x700')
 
 		# 画像を読み込み
 		self.read_img()
@@ -102,8 +105,14 @@ class MainApplication(tk.Frame):
 	def create_widget(self):
 		h,w=self.img.shape[:2]
 		self.canvas1 = tk.Canvas(self.master, width=w, height=h)
-		self.canvas1.pack()
+#		self.canvas1.pack()
 		self.canvas1.place(x=0, y=0)
+		_slength=200
+		self.canvas2 = tk.Canvas(self.master, width=_slength, height=_slength)
+#		self.canvas2.pack()
+		self.canvas2.place(x=1000, y=10)
+		self.canvas2.create_line(_slength/2, 0,_slength/2, _slength,tag="line1")
+		self.canvas2.create_line(0, _slength/2,_slength, _slength/2,tag="line2")
 
 		self.label1 = tk.Label(self.master, bg="white", width=10, height=3)
 		self.label1.place(x=100, y=600)
@@ -569,6 +578,41 @@ class MainApplication(tk.Frame):
 		x = event.x*2
 		y = event.y*2
 		self.label1["text"] = str([x,y]) 
+		self.frame_rect(x, y)
+		self.canvas_set(x, y)
+
+	def frame_rect(self, x, y):
+		# 過去に枠線が描画されている場合はそれを削除し、メイン画像内マウス位置に枠線を描画
+		x=x/2
+		y=y/2
+		self.frame_refresh()
+		self.crop_frame = (x-_framelength/2, y-_framelength/2, x+_framelength/2, y+_framelength/2)	
+		self.rectframe = self.canvas1.create_rectangle(self.crop_frame, outline='#AAA', width=2, tag='rect')
+
+	def frame_refresh(self):
+		try:
+			self.canvas1.delete('rect')
+		except:
+			pass
+
+	def canvas_set(self, x, y):
+		# 枠線内をクロップし、ズームする
+		zoom_mag = _squarelength / _framelength
+#		croped = self.resize_image.crop(self.crop_frame)
+		croped = self.img[int(self.crop_frame[0]):int(self.crop_frame[1]),int(self.crop_frame[2]):int(self.crop_frame[3]),:]
+		zoom_image = cv2.resize(croped,dsize=(200,200))
+#		self.img_disp = cv2.resize(self.img, dsize=(int(w/2),int(h/2)))
+
+		# ズームした画像を右側canvasに当てはめる
+		self.image_refresh()
+		self.sub_image1 = ImageTk.PhotoImage(zoom_image)
+
+		self.sub_cv1 = self.canvas2.create_image(0, 0, image=self.sub_image1, anchor=tk.NW, tag='cv1')
+
+		self.canvas1.delete("line1")  # すでに"rect1"タグの図形があれば削除
+		self.canvas1.delete("line2")  # すでに"rect1"タグの図形があれば削除
+		self.canvas2.create_line(_squarelength/2, 0,_squarelength/2, _squarelength,tag="line1")
+		self.canvas2.create_line(0, _squarelength/2,_squarelength, _squarelength/2,tag="line2")
 
 def main():
 	root = tk.Tk()
