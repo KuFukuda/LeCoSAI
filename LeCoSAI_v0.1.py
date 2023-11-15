@@ -23,9 +23,10 @@ import math
 ################タスク
 #画像から星を抽出するしきい値を画面から可変とする
 #カタログから星を抽出するしきい値を画面から可変とする
-#マウスの位置を拡大した画像を表示する：ポイントしやすいように
+#線を結んだ状態を維持した状態でカタログの星を移動させる
 ################済み
 #v0.1 カタログと画像の星の対応をクリックでつけ直せるようにする
+#マウスの位置を拡大した画像を表示する：ポイントしやすいように
 
 _squarelength = 200
 _framelength = 50
@@ -134,9 +135,10 @@ class MainApplication(tk.Frame):
 		# canvas1にマウスが乗った場合、離れた場合のイベントをセット。
 		self.canvas1.bind('<Motion>', self.mouse_motion)
 		self.canvas1.bind("<ButtonPress-1>", self.point_get)
+#		self.canvas1.bind('<Leave>', self.mouse_leave)
 #		self.button.bind("<ButtonPress-1>", self.point_get)
 #		self.canvas1.bind('<KeyPress>',self.key_event)
-#		self.master.bind('<KeyPress>',self.key_event)
+		self.master.bind('<KeyPress>',self.key_event)
 
 #		font = tk.font.Font(family='Arial', size=16, weight='bold')
 #		image_title = tk.Label(text='=>', bg = "white", font=font)
@@ -147,13 +149,13 @@ class MainApplication(tk.Frame):
 		self.key=event.keysym
 #		print(self.key)
 		if self.key == "j":
-			self.stars_catalog[:,0] -=-1
-			self.left -= 1
-			self.right -= 1
-		elif self.key == "l":
 			self.stars_catalog[:,0] +=-1
 			self.left += 1
 			self.right += 1
+		elif self.key == "l":
+			self.stars_catalog[:,0] -=-1
+			self.left -= 1
+			self.right -= 1
 		elif self.key == "i":
 			self.stars_catalog[:,1] +=-1
 			self.top += 1
@@ -190,6 +192,11 @@ class MainApplication(tk.Frame):
 	
 			self.line.append([a,b])
 #		print(self.line)
+
+	def calc_catalog(self):
+		# project 3D points to image plane
+		imgpts, jac = cv2.projectPoints(self.stars_catalog, self.rvecs, self.tvecs, self.mtx, self.dist)
+		print(imgpts)
 
 	def calc_center(self):
 		a0,b0=self.line[0]
@@ -251,7 +258,7 @@ class MainApplication(tk.Frame):
 	def map_catalog(self):
 		simbad = Simbad()
 		simbad.add_votable_fields('flux(V)')
-		hoshi = simbad.query_criteria('Vmag<4',otype='star')
+		hoshi = simbad.query_criteria('Vmag<5',otype='star')
 		
 		LOCATION = EarthLocation(lon=139.3370196674786*u.deg, lat=36.41357867541122*u.deg, height=122*u.m)
 		utcoffset = 0*u.hour
@@ -376,7 +383,7 @@ class MainApplication(tk.Frame):
 #		self.mtx=np.insert(self.mtx,2,insert_m,axis=0)
 		imgpoints=self.kp_img
 		imgpoints=np.array([imgpoints],dtype="float32")
-		ret, self.mtx, self.dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
+		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
 #		ret, self.mtx, self.dist, rvecs, tvecs = cv2.calibrateCamera(self.kp_catalog, self.kp_img, np.array([1920,1080),None,None)
 #		ret, self.mtx, self.dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
 		#ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],initial_mtx,initial_dist)
@@ -392,9 +399,9 @@ class MainApplication(tk.Frame):
 		print("dist : ")
 		print(self.dist)
 		print("rvecs : ")
-		print(rvecs)
+		print(self.rvecs)
 		print("tvecs : ")
-		print(tvecs)
+		print(self.tvecs)
 
 #		s_point=np.array([self.mtx[0,2],self.mtx[1,2]],dtype="int32")
 #		print(s_point)
@@ -442,7 +449,11 @@ class MainApplication(tk.Frame):
 		self.kp_img=np.array(self.kp_img)
 #		print(self.kp_catalog,self.kp_img)
 		if self.kp_catalog.shape[0]>5:
+			#カメラの歪みを考慮したカタログ星の位置を示す
 			self.camera()
+			self.calc_catalog()
+
+
 			self.mtx,inliers=cv2.estimateAffinePartial2D(self.kp_catalog_original,self.kp_img)
 #			mtx,inliers=cv2.estimateAffinePartial2D(self.kp_img,self.kp_catalog)
 #			mtx,inliers=cv2.estimateAffine2D(self.kp_catalog_original,self.kp_img)
@@ -595,22 +606,46 @@ class MainApplication(tk.Frame):
 		except:
 			pass
 
+	def image_refresh(self):
+		try:
+			self.canvas2.delete('cv1')
+		except:
+			pass
+
+#	def mouse_leave(self, event):
+#		try:
+#			self.canvas2.delete('cv1')
+#			self.canvas1.delete('rect')
+#		except:
+#			pass
+
 	def canvas_set(self, x, y):
 		# 枠線内をクロップし、ズームする
 		zoom_mag = _squarelength / _framelength
 #		croped = self.resize_image.crop(self.crop_frame)
-		croped = self.img[int(self.crop_frame[0]):int(self.crop_frame[1]),int(self.crop_frame[2]):int(self.crop_frame[3]),:]
-		zoom_image = cv2.resize(croped,dsize=(200,200))
+		print(self.crop_frame)
+		self.croped = self.img[2*int(self.crop_frame[1]):2*int(self.crop_frame[3]),2*int(self.crop_frame[0]):2*int(self.crop_frame[2]),:]
+#		self.croped = self.img[2*int(self.crop_frame[0]):2*int(self.crop_frame[2]),2*int(self.crop_frame[1]):2*int(self.crop_frame[3]),:]
+		print(self.croped.shape)
+#		zoom_image = cv2.resize(croped,dsize=(200,200))
 #		self.img_disp = cv2.resize(self.img, dsize=(int(w/2),int(h/2)))
 
 		# ズームした画像を右側canvasに当てはめる
 		self.image_refresh()
-		self.sub_image1 = ImageTk.PhotoImage(zoom_image)
+#		self.sub_image1 = ImageTk.PhotoImage(zoom_image)
 
-		self.sub_cv1 = self.canvas2.create_image(0, 0, image=self.sub_image1, anchor=tk.NW, tag='cv1')
+#		self.img_disp = cv2.resize(self.img, dsize=(int(w/2),int(h/2)))
+		self.img_dispa = cv2.resize(self.croped, dsize=(200,200))
+#		self.img_disp = self.croped
+		self.img_rgba = cv2.cvtColor(self.img_dispa, cv2.COLOR_BGR2RGB) # imreadはBGRなのでRGBに変換
+		self.img_pila = Image.fromarray(self.img_rgba) # RGBからPILフォーマットへ変換
+		self.img_tka  = ImageTk.PhotoImage(self.img_pila) # ImageTkフォーマットへ変換
 
-		self.canvas1.delete("line1")  # すでに"rect1"タグの図形があれば削除
-		self.canvas1.delete("line2")  # すでに"rect1"タグの図形があれば削除
+#		self.sub_cv1 = self.canvas2.create_image(0, 0, image=self.sub_image1, anchor=tk.NW, tag='cv1')
+		self.sub_cv1 = self.canvas2.create_image(0, 0, image=self.img_tka, anchor=tk.NW, tag='cv1')
+
+#		self.canvas1.delete("line1")  # すでに"rect1"タグの図形があれば削除
+#		self.canvas1.delete("line2")  # すでに"rect1"タグの図形があれば削除
 		self.canvas2.create_line(_squarelength/2, 0,_squarelength/2, _squarelength,tag="line1")
 		self.canvas2.create_line(0, _squarelength/2,_squarelength, _squarelength/2,tag="line2")
 
