@@ -24,6 +24,7 @@ import math
 #画像から星を抽出するしきい値を画面から可変とする
 #カタログから星を抽出するしきい値を画面から可変とする
 #線を結んだ状態を維持した状態でカタログの星を移動させる
+	#星をインデックスで識別する必要がある
 ################済み
 #v0.1 カタログと画像の星の対応をクリックでつけ直せるようにする
 #マウスの位置を拡大した画像を表示する：ポイントしやすいように
@@ -194,9 +195,29 @@ class MainApplication(tk.Frame):
 #		print(self.line)
 
 	def calc_catalog(self):
+#		print(self.stars_catalog.shape)
+		stars_catalog=self.stars_catalog.copy()
+		stars_catalog=np.insert(stars_catalog, 2, 0.0, axis=1)
+		stars_catalog=np.array(stars_catalog,dtype="float32")
+#		print(stars_catalog)
+#		print(stars_catalog.shape)
 		# project 3D points to image plane
-		imgpts, jac = cv2.projectPoints(self.stars_catalog, self.rvecs, self.tvecs, self.mtx, self.dist)
-		print(imgpts)
+#		rvecs=self.rvecs.get()
+		self.rvecs=np.array(self.rvecs)
+		self.tvecs=np.array(self.tvecs)
+#		print(self.rvecs)
+#		imgpts, jac = cv2.projectPoints(self.stars_catalog, self.rvecs, self.tvecs, self.mtx, self.dist)
+		self.calc_catalog, jac = cv2.projectPoints(stars_catalog, self.rvecs, self.tvecs, self.mtx, self.dist)
+#		imgpts, jac = cv2.projectPoints(self.stars_catalog, rvecs, self.tvecs, self.mtx, self.dist)
+		self.calc_catalog=np.array(self.calc_catalog,dtype="int32")
+		self.calc_catalog=self.calc_catalog.reshape(self.calc_catalog.shape[0],self.calc_catalog.shape[2])
+		print(self.calc_catalog)
+		print(self.calc_catalog.shape)
+		print(self.calc_catalog[0])
+		color_catalog=(255,0,0)
+#		draw_stars(self.img,self.stars_catalog,color_catalog)
+		draw_stars(self.img,self.calc_catalog,color_catalog,cv2.MARKER_STAR)
+		self.disp_img()
 
 	def calc_center(self):
 		a0,b0=self.line[0]
@@ -588,9 +609,10 @@ class MainApplication(tk.Frame):
 		# マウス最近傍の星の座標を得る
 		x = event.x*2
 		y = event.y*2
-		self.label1["text"] = str([x,y]) 
-		self.frame_rect(x, y)
-		self.canvas_set(x, y)
+		if 0<=x and x<=self.img.shape[1] and 0<=y and y<=self.img.shape[0]:
+			self.label1["text"] = str([x,y]) 
+			self.frame_rect(x, y)
+			self.canvas_set(x, y)
 
 	def frame_rect(self, x, y):
 		# 過去に枠線が描画されている場合はそれを削除し、メイン画像内マウス位置に枠線を描画
@@ -623,10 +645,10 @@ class MainApplication(tk.Frame):
 		# 枠線内をクロップし、ズームする
 		zoom_mag = _squarelength / _framelength
 #		croped = self.resize_image.crop(self.crop_frame)
-		print(self.crop_frame)
+#		print(self.crop_frame)
 		self.croped = self.img[2*int(self.crop_frame[1]):2*int(self.crop_frame[3]),2*int(self.crop_frame[0]):2*int(self.crop_frame[2]),:]
 #		self.croped = self.img[2*int(self.crop_frame[0]):2*int(self.crop_frame[2]),2*int(self.crop_frame[1]):2*int(self.crop_frame[3]),:]
-		print(self.croped.shape)
+#		print(self.croped.shape)
 #		zoom_image = cv2.resize(croped,dsize=(200,200))
 #		self.img_disp = cv2.resize(self.img, dsize=(int(w/2),int(h/2)))
 
