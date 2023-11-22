@@ -16,15 +16,18 @@ import datetime
 import os
 import math
 
-#目的：複数の画像の星の対応を正確に取りたい
-#手法：各画像の星と星のカタログで対応を取る
+#目的：レンズのゆがみを星の位置関係から補正する
+#手法：本来の星の位置のカタログと撮影された星を対応させ、カメラのパラメータを取得し、補正する。
 
 #v0.1
 ################タスク
+#目的：レンズのゆがみを星の位置関係から補正する
 #画像から星を抽出するしきい値を画面から可変とする
 #カタログから星を抽出するしきい値を画面から可変とする
 #線を結んだ状態を維持した状態でカタログの星を移動させる
 	#星をインデックスで識別する必要がある
+#星の等級に応じて、カタログのマークを大きくする。
+#星のカタログから現在の方位や仰角を画面に表示する
 ################済み
 #v0.1 カタログと画像の星の対応をクリックでつけ直せるようにする
 #マウスの位置を拡大した画像を表示する：ポイントしやすいように
@@ -194,30 +197,35 @@ class MainApplication(tk.Frame):
 			self.line.append([a,b])
 #		print(self.line)
 
-	def calc_catalog(self):
+	def calc_catalog_point(self):
 #		print(self.stars_catalog.shape)
 		stars_catalog=self.stars_catalog.copy()
 		stars_catalog=np.insert(stars_catalog, 2, 0.0, axis=1)
 		stars_catalog=np.array(stars_catalog,dtype="float32")
+		stars_catalog[:,0]=(stars_catalog[:,0]-self.mtx[0,2])/self.mtx[0,0]
+		stars_catalog[:,1]=(stars_catalog[:,1]-self.mtx[1,2])/self.mtx[1,1]
 #		print(stars_catalog)
 #		print(stars_catalog.shape)
 		# project 3D points to image plane
 #		rvecs=self.rvecs.get()
-		self.rvecs=np.array(self.rvecs)
-		self.tvecs=np.array(self.tvecs)
+#		self.rvecs=np.array(self.rvecs)
+#		self.tvecs=np.array(self.tvecs)
+		self.rvecs = np.zeros((3, 1))
+#		rvecs[0,:]=self.rvecs
+		self.tvecs = np.zeros((3, 1))
+#		tvecs[0,:]=self.tvecs
+#		self.tvecs = np.zeros((3, 1))
 #		print(self.rvecs)
 #		imgpts, jac = cv2.projectPoints(self.stars_catalog, self.rvecs, self.tvecs, self.mtx, self.dist)
 		self.calc_catalog, jac = cv2.projectPoints(stars_catalog, self.rvecs, self.tvecs, self.mtx, self.dist)
+#		self.calc_catalog, jac = cv2.projectPoints(stars_catalog, self.rvecs, self.tvecs, self.mtx, self.dist)
 #		imgpts, jac = cv2.projectPoints(self.stars_catalog, rvecs, self.tvecs, self.mtx, self.dist)
-		self.calc_catalog=np.array(self.calc_catalog,dtype="int32")
-		self.calc_catalog=self.calc_catalog.reshape(self.calc_catalog.shape[0],self.calc_catalog.shape[2])
+#		self.calc_catalog=np.int32(self.calc_catalog).reshape(self.calc_catalog.shape[0],self.calc_catalog.shape[2])
+		self.calc_catalog=np.int32(self.calc_catalog).reshape(-1,2)
+#		self.calc_catalog=self.calc_catalog.reshape(self.calc_catalog.shape[0],self.calc_catalog.shape[2])
 		print(self.calc_catalog)
 		print(self.calc_catalog.shape)
 		print(self.calc_catalog[0])
-		color_catalog=(255,0,0)
-#		draw_stars(self.img,self.stars_catalog,color_catalog)
-		draw_stars(self.img,self.calc_catalog,color_catalog,cv2.MARKER_STAR)
-		self.disp_img()
 
 	def calc_center(self):
 		a0,b0=self.line[0]
@@ -266,7 +274,8 @@ class MainApplication(tk.Frame):
 				self.kp_img.append(self.stars_img[min_dist_indx])
 #				cv2.line(self.img, self.kp_catalog[-1], self.kp_img[-1], (255,255,255), thickness=1)
 		self.drawline()
-		self.disp_img()
+		self.remake_img()
+#		self.disp_img()
 
 	def drawline(self):
 		#self.img_stars2:画像から抽出したマークまでつけた画像
@@ -388,6 +397,8 @@ class MainApplication(tk.Frame):
 #カタログの星を移動させる
 		self.stars_adjust()
 		self.draw_stars_d()
+		color_catalog=(255,255,255)
+		draw_stars(self.img,self.calc_catalog,color_catalog,cv2.MARKER_STAR)
 #		self.img_stars=self.img.copy()
 		self.disp_img()
 
@@ -398,21 +409,35 @@ class MainApplication(tk.Frame):
 	def camera(self):
 		gray = cv2.cvtColor(self.img, cv2.COLOR_RGB2GRAY)
 #		print(gray.shape[::-1])
-		objpoints=np.insert(self.kp_catalog,2,0.0,axis=1)
-		objpoints=np.array([objpoints],dtype="float32")
+		self.objps=np.insert(self.kp_catalog,2,0.0,axis=1)
+		self.objps=np.array([self.objps],dtype="float32")
 #		print(objpoints)
 #		self.mtx=np.insert(self.mtx,2,insert_m,axis=0)
 		imgpoints=self.kp_img
 		imgpoints=np.array([imgpoints],dtype="float32")
-		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
+#		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],None,None)
+#		self.rvecs=np.float32(self.rvecs).reshape((3,1))
+#		self.tvecs=np.float32(self.rvecs).reshape((3,1))
+
 #		ret, self.mtx, self.dist, rvecs, tvecs = cv2.calibrateCamera(self.kp_catalog, self.kp_img, np.array([1920,1080),None,None)
 #		ret, self.mtx, self.dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
 		#ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],initial_mtx,initial_dist)
 		
 		#ret, mtx, dist, rvecs, tvecs =cv2.fisheye.calibrate(objpoints,imgpoints,gray.shape[::-1],K,d,tvecs,calibration_flags,self.criteria)
+#ベタ打ち
+		fx=1.14731e3
+		fy=1.14814e3
+		cx=9.68865e2	#pixel
+		cy=5.32106e2	#pixel
+		self.mtx = np.array([[fx, 0.0,cx], # カメラ行列
+						[0.0,fy, cy],
+						[0.0,0.0,1.0]])
+		self.dist = np.array([-3.84386e-01,2.00727e-01,7.27513e-04,3.32499e-04,-6.59210e-02])
+		self.rvecs = np.zeros((3, 1))
+		self.tvecs = np.zeros((3, 1))
 		
-		print("Err : ")
-		print(ret)
+#		print("Err : ")
+#		print(ret)
 		print("\n")
 		print("Camera matrix : ")
 		print(self.mtx)
@@ -430,7 +455,22 @@ class MainApplication(tk.Frame):
 #		cv2.drawMarker(self.img, s_point, color_s, markerType=cv2.MARKER_STAR, markerSize=10, thickness=1, line_type=cv2.LINE_8)
 
 		self.save_para()
-		self.undistortion()
+#		self.undistortion()
+
+#	def pseudo_camera(self):
+#		self.catalog_camera, _ = cv2.projectPoints(self.objps, self.rvecs, self.tvecs, self.mtx, self.dist)
+#
+#		size=(1080,1920)
+#		img_check=np.zeros(size,np.uint8)
+#
+#		objp = np.float32(self.objps[:,:2]).reshape(-1, 2)
+#		self.catalog_camera = np.int32(self.catalog_camera).reshape(-1, 2)
+#		for i in range(self.catalog_camera.shape[0]):
+#		#	print(objp[i],imgpts[i])
+#			cv2.circle(img,objp[i],radius=6,color=(255, 255, 255),thickness=-1,lineType=cv2.LINE_4,shift=0)
+#			cv2.circle(img_check,self.catalog_camera[i],radius=6,color=(255, 255, 255),thickness=3,lineType=cv2.LINE_4,shift=0)
+#		
+#		cv2.imwrite("check.jpg", img_check)
 
 	def save_para(self):
 		k_filename="K_calibcamera.csv"
@@ -472,10 +512,9 @@ class MainApplication(tk.Frame):
 		if self.kp_catalog.shape[0]>5:
 			#カメラの歪みを考慮したカタログ星の位置を示す
 			self.camera()
-			self.calc_catalog()
+			self.calc_catalog_point()
 
-
-			self.mtx,inliers=cv2.estimateAffinePartial2D(self.kp_catalog_original,self.kp_img)
+#			self.mtx,inliers=cv2.estimateAffinePartial2D(self.kp_catalog_original,self.kp_img)
 #			mtx,inliers=cv2.estimateAffinePartial2D(self.kp_img,self.kp_catalog)
 #			mtx,inliers=cv2.estimateAffine2D(self.kp_catalog_original,self.kp_img)
 		else:
