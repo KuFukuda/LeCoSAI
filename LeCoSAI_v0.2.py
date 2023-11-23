@@ -24,8 +24,7 @@ import math
 #画像の上限にマウスが接すると、エラー表示が出る。
 ################タスク
 #目的：レンズのゆがみを星の位置関係から補正する
-#線を結んだ状態を維持した状態でカタログの星を移動させる
-	#星をインデックスで識別する必要がある
+#星の位置がおかしくなったとき用に、リセットボタンを用意する
 #画像から星を抽出するしきい値を画面から可変とする
 #カタログから星を抽出するしきい値を画面から可変とする
 #星の等級に応じて、カタログのマークを大きくする。
@@ -34,6 +33,8 @@ import math
 ################済み
 #v0.1 カタログと画像の星の対応をクリックでつけ直せるようにする
 #マウスの位置を拡大した画像を表示する：ポイントしやすいように
+#線を結んだ状態を維持した状態でカタログの星を移動させる
+	#星をインデックスで識別する必要がある
 
 _squarelength = 200
 _framelength = 50
@@ -72,9 +73,11 @@ class MainApplication(tk.Frame):
 #			cv2.circle(img_star_catalog, s_point, 2, color_img, thickness=1, lineType=cv2.LINE_AA, shift=0)
 #		cv2.imwrite('20231021032633.jpg', img_star_catalog)
 		
-		self.kp_catalog=[]
-		self.kp_catalog_original=[]
-		self.kp_img=[]
+		#kp_index : [catalog_index,img_index]
+		self.kp_index=[]
+#		self.kp_catalog=[]
+#		self.kp_catalog_original=[]
+#		self.kp_img=[]
 		self.flag=0
 		self.mtx_old=np.array([[1,0,0],[0,1,0]])
 		self.line=[]
@@ -201,7 +204,8 @@ class MainApplication(tk.Frame):
 #		print(self.line)
 
 	def calc_catalog_point(self):
-		stars_catalog=self.stars_catalog.copy()
+#		stars_catalog=self.stars_catalog.copy()
+		stars_catalog=self.stars_catalog_original.copy()
 		stars_catalog=np.insert(stars_catalog, 2, 0.0, axis=1)
 		stars_catalog=np.array(stars_catalog,dtype="float32")
 		stars_catalog[:,0]=(stars_catalog[:,0]-self.mtx[0,2])/self.mtx[0,0]
@@ -216,9 +220,9 @@ class MainApplication(tk.Frame):
 #		self.calc_catalog=np.int32(self.calc_catalog).reshape(self.calc_catalog.shape[0],self.calc_catalog.shape[2])
 		self.calc_catalog=np.int32(self.calc_catalog).reshape(-1,2)
 #		self.calc_catalog=self.calc_catalog.reshape(self.calc_catalog.shape[0],self.calc_catalog.shape[2])
-		print(self.calc_catalog)
-		print(self.calc_catalog.shape)
-		print(self.calc_catalog[0])
+#		print(self.calc_catalog)
+#		print(self.calc_catalog.shape)
+#		print(self.calc_catalog[0])
 		self.stars_catalog=self.calc_catalog
 
 	def calc_center(self):
@@ -263,10 +267,12 @@ class MainApplication(tk.Frame):
 			min_dist=min(dist_list)
 			if min_dist<R:
 				min_dist_indx=np.argmin(dist_list)	#最短のstarsのインデックス
-				self.kp_catalog.append(self.stars_catalog[catalog_indx])
-				self.kp_catalog_original.append(self.stars_catalog_original[catalog_indx]) #add
-				self.kp_img.append(self.stars_img[min_dist_indx])
+#				self.kp_catalog.append(self.stars_catalog[catalog_indx])
+#				self.kp_catalog_original.append(self.stars_catalog_original[catalog_indx]) #add
+#				self.kp_img.append(self.stars_img[min_dist_indx])
+				self.kp_index.append([catalog_indx,min_dist_indx])
 #				cv2.line(self.img, self.kp_catalog[-1], self.kp_img[-1], (255,255,255), thickness=1)
+		self.make_kp_list()
 		self.drawline()
 		self.remake_img()
 #		self.disp_img()
@@ -381,31 +387,21 @@ class MainApplication(tk.Frame):
 
 	def remake_img(self):
 		self.canvas1.delete("img")
-#		self.read_img()	#画像を再構成
-#画像から星を抽出
-#		self.stars_img=star_detect(self.img)
-#		self.star_detect()
-#		self.map_catalog()
-
 #		self.Reline()
 #		self.calc_center()
 
 #カタログの星を移動させる
 		self.stars_adjust()
 		self.draw_stars_d()
-#		color_catalog=(255,255,255)
-#		draw_stars(self.img,self.calc_catalog,color_catalog,cv2.MARKER_STAR)
-#		self.img_stars=self.img.copy()
+		self.make_kp_list()
+		self.drawline()
 		self.disp_img()
-
-		self.kp_catalog=[]
-		self.kp_catalog_original=[]
-		self.kp_img=[]
 
 	def camera(self):
 		gray = cv2.cvtColor(self.img, cv2.COLOR_RGB2GRAY)
 #		print(gray.shape[::-1])
-		self.objps=np.insert(self.kp_catalog,2,0.0,axis=1)
+#		self.objps=np.insert(self.kp_catalog,2,0.0,axis=1)
+		self.objps=np.insert(self.kp_catalog_original,2,0.0,axis=1)
 		self.objps=np.array([self.objps],dtype="float32")
 #		self.objps=np.float32(self.objps).reshape(-1,3)
 		print(self.objps)
@@ -422,6 +418,7 @@ class MainApplication(tk.Frame):
 		self.rvecs=np.zeros((3,1))
 		self.tvecs=np.zeros((3,1))
 		self.rvecs[2]=rvecs[2]
+		self.tvecs=tvecs
 #		self.tvecs[0]=tvecs[0]/self.mtx[0,0]
 #		self.tvecs[1]=tvecs[1]/self.mtx[1,1]
 
@@ -452,9 +449,11 @@ class MainApplication(tk.Frame):
 		print("dist : ")
 		print(self.dist)
 		print("rvecs : ")
-		print(self.rvecs)
+#		print(self.rvecs)
+		print(rvecs)
 		print("tvecs : ")
-		print(self.tvecs)
+#		print(self.tvecs)
+		print(tvecs)
 
 #		s_point=np.array([self.mtx[0,2],self.mtx[1,2]],dtype="int32")
 #		print(s_point)
@@ -463,21 +462,6 @@ class MainApplication(tk.Frame):
 
 		self.save_para()
 #		self.undistortion()
-
-#	def pseudo_camera(self):
-#		self.catalog_camera, _ = cv2.projectPoints(self.objps, self.rvecs, self.tvecs, self.mtx, self.dist)
-#
-#		size=(1080,1920)
-#		img_check=np.zeros(size,np.uint8)
-#
-#		objp = np.float32(self.objps[:,:2]).reshape(-1, 2)
-#		self.catalog_camera = np.int32(self.catalog_camera).reshape(-1, 2)
-#		for i in range(self.catalog_camera.shape[0]):
-#		#	print(objp[i],imgpts[i])
-#			cv2.circle(img,objp[i],radius=6,color=(255, 255, 255),thickness=-1,lineType=cv2.LINE_4,shift=0)
-#			cv2.circle(img_check,self.catalog_camera[i],radius=6,color=(255, 255, 255),thickness=3,lineType=cv2.LINE_4,shift=0)
-#		
-#		cv2.imwrite("check.jpg", img_check)
 
 	def save_para(self):
 		k_filename="K_calibcamera.csv"
@@ -540,10 +524,8 @@ class MainApplication(tk.Frame):
 
 #		self.calc_stars_point()
 #		self.rotate_point()
-#		print(self.mtx_old)
 		self.mxt_old=self.mtx
 		self.mtx_old=self.mtx_old[:2,:]
-#		print(self.mtx_old)
 
 	def calc_stars_point(self):
 		stars_catalog_calc=np.insert(self.stars_catalog_original, 2, 1, axis=1)
@@ -567,8 +549,6 @@ class MainApplication(tk.Frame):
 		# 回転した座標を格納するリスト
 		rotated_points = []
 		
-#		for i in range(0, len(point), 2):
-#		for point in self.stars_catalog_original:
 		for point in self.stars_catalog:
 			x=point[0]-center[0]
 			y=point[1]-center[1]
@@ -583,54 +563,84 @@ class MainApplication(tk.Frame):
 #		self.stars_catalog_re=self.stars_catalog_re.reshape(self.stars_catalog_original.shape)
 		self.stars_catalog_re=self.stars_catalog_re.reshape(self.stars_catalog.shape)
 		self.stars_catalog=self.stars_catalog_re
-#		print(self.stars_catalog[0])	
-#		print(self.stars_catalog[1])	
 
 	def point_get(self,event):
 		sd=self.nearst(event)
-#		print(sd,self.flag)
 		if sd!=0:
 			if self.flag==0:
-				self.kp_catalog.append(self.stars_catalog[sd])
-				self.kp_catalog_original.append(self.stars_catalog_original[sd]) #add
+				self.kp_index_catalog=sd
+#				self.kp_catalog.append(self.stars_catalog[sd])
+#				self.kp_catalog_original.append(self.stars_catalog_original[sd]) #add
 				self.label2["text"]=str(self.stars_catalog[sd])
 				self.flag=1
 			else:
-				self.kp_img.append(self.stars_img[sd])
+				self.kp_index.append([self.kp_index_catalog,sd])
+#				self.kp_img.append(self.stars_img[sd])
 				self.label3["text"]=str(self.stars_img[sd])
-				if len(self.kp_img)>2:
-					self.check_kp()
+#				if len(self.kp_img)>2:
+				if len(self.kp_index)>2:
+#					self.check_kp()
+					self.check_kp_index()
 
+				self.make_kp_list()
 				self.drawline()
 				self.disp_img()
 				self.flag=0
-	
-	def check_kp(self):
+#		print(self.kp_index)
+
+	#位置のリストを作成する
+	def make_kp_list(self):
+		self.kp_catalog=[]
+		self.kp_catalog_original=[]
+		self.kp_img=[]
+		for index in self.kp_index:
+			self.kp_catalog.append(self.stars_catalog[index[0]])
+			self.kp_catalog_original.append(self.stars_catalog_original[index[0]]) #add
+			self.kp_img.append(self.stars_img[index[1]])
+
+	def check_kp_index(self):
 	#既にその星の登録があるならそれを解除して登録する。
-		kc=np.array(self.kp_catalog[-1])
-		kco=np.array(self.kp_catalog[-1])
-		ki=np.array(self.kp_img[-1])
+		new_index=np.array(self.kp_index[-1])
 		tmp1 = []
-		tmp2 = []
-		tmp3 = []
-		for i in range(len(self.kp_catalog[:-1])):
-			c = np.array(self.kp_catalog[i])
-			co = np.array(self.kp_catalog_original[i])
-			i = np.array(self.kp_img[i])
-			if not (np.array_equal(c,kc) or np.array_equal(i,ki)):
+		for i in range(len(self.kp_index[:-1])):
+			c = np.array(self.kp_index[i])
+			#catalogまたはimgのindexが一致していたら被り
+#			print(new_index,c)
+#			print(np.equal(c,new_index))
+#			print(sum(np.equal(c,new_index)))
+#			if not (np.array_equal(c,new_index)):
+			if not (sum(np.equal(c,new_index))):
 				tmp1.append(c)
-				tmp2.append(i)
-				tmp3.append(co)
 		
-		self.kp_catalog=tmp1
-		self.kp_catalog_original=tmp3
-		self.kp_img=tmp2
-		self.kp_catalog.append(kc)
-		self.kp_catalog_original.append(kco)
-		self.kp_img.append(ki)
-#		print(self.kp_catalog)
-#		print(self.kp_catalog_original)
-#		print(self.kp_img)
+		self.kp_index=tmp1
+		self.kp_index.append(new_index)
+	
+#	def check_kp(self):
+#	#既にその星の登録があるならそれを解除して登録する。
+#		kc=np.array(self.kp_catalog[-1])
+#		kco=np.array(self.kp_catalog[-1])
+#		ki=np.array(self.kp_img[-1])
+#		tmp1 = []
+#		tmp2 = []
+#		tmp3 = []
+#		for i in range(len(self.kp_catalog[:-1])):
+#			c = np.array(self.kp_catalog[i])
+#			co = np.array(self.kp_catalog_original[i])
+#			i = np.array(self.kp_img[i])
+#			if not (np.array_equal(c,kc) or np.array_equal(i,ki)):
+#				tmp1.append(c)
+#				tmp2.append(i)
+#				tmp3.append(co)
+#		
+#		self.kp_catalog=tmp1
+#		self.kp_catalog_original=tmp3
+#		self.kp_img=tmp2
+#		self.kp_catalog.append(kc)
+#		self.kp_catalog_original.append(kco)
+#		self.kp_img.append(ki)
+##		print(self.kp_catalog)
+##		print(self.kp_catalog_original)
+##		print(self.kp_img)
 
 #flagはカタログ0か画像1かの違い
 	def nearst(self,event):
@@ -664,9 +674,9 @@ class MainApplication(tk.Frame):
 		# 過去に枠線が描画されている場合はそれを削除し、メイン画像内マウス位置に枠線を描画
 		x=x/2
 		y=y/2
-		self.frame_refresh()
+#		self.frame_refresh()
 		self.crop_frame = (x-_framelength/2, y-_framelength/2, x+_framelength/2, y+_framelength/2)	
-		self.rectframe = self.canvas1.create_rectangle(self.crop_frame, outline='#AAA', width=2, tag='rect')
+#		self.rectframe = self.canvas1.create_rectangle(self.crop_frame, outline='#AAA', width=2, tag='rect')
 
 	def frame_refresh(self):
 		try:
@@ -680,31 +690,15 @@ class MainApplication(tk.Frame):
 		except:
 			pass
 
-#	def mouse_leave(self, event):
-#		try:
-#			self.canvas2.delete('cv1')
-#			self.canvas1.delete('rect')
-#		except:
-#			pass
-
 	def canvas_set(self, x, y):
 		# 枠線内をクロップし、ズームする
 		zoom_mag = _squarelength / _framelength
-#		croped = self.resize_image.crop(self.crop_frame)
-#		print(self.crop_frame)
 		self.croped = self.img[2*int(self.crop_frame[1]):2*int(self.crop_frame[3]),2*int(self.crop_frame[0]):2*int(self.crop_frame[2]),:]
-#		self.croped = self.img[2*int(self.crop_frame[0]):2*int(self.crop_frame[2]),2*int(self.crop_frame[1]):2*int(self.crop_frame[3]),:]
-#		print(self.croped.shape)
-#		zoom_image = cv2.resize(croped,dsize=(200,200))
-#		self.img_disp = cv2.resize(self.img, dsize=(int(w/2),int(h/2)))
 
 		# ズームした画像を右側canvasに当てはめる
 		self.image_refresh()
-#		self.sub_image1 = ImageTk.PhotoImage(zoom_image)
 
-#		self.img_disp = cv2.resize(self.img, dsize=(int(w/2),int(h/2)))
 		self.img_dispa = cv2.resize(self.croped, dsize=(200,200))
-#		self.img_disp = self.croped
 		self.img_rgba = cv2.cvtColor(self.img_dispa, cv2.COLOR_BGR2RGB) # imreadはBGRなのでRGBに変換
 		self.img_pila = Image.fromarray(self.img_rgba) # RGBからPILフォーマットへ変換
 		self.img_tka  = ImageTk.PhotoImage(self.img_pila) # ImageTkフォーマットへ変換
@@ -712,8 +706,6 @@ class MainApplication(tk.Frame):
 #		self.sub_cv1 = self.canvas2.create_image(0, 0, image=self.sub_image1, anchor=tk.NW, tag='cv1')
 		self.sub_cv1 = self.canvas2.create_image(0, 0, image=self.img_tka, anchor=tk.NW, tag='cv1')
 
-#		self.canvas1.delete("line1")  # すでに"rect1"タグの図形があれば削除
-#		self.canvas1.delete("line2")  # すでに"rect1"タグの図形があれば削除
 		self.canvas2.create_line(_squarelength/2, 0,_squarelength/2, _squarelength,tag="line1")
 		self.canvas2.create_line(0, _squarelength/2,_squarelength, _squarelength/2,tag="line2")
 
