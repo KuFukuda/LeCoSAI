@@ -19,22 +19,30 @@ import math
 #目的：レンズのゆがみを星の位置関係から補正する
 #手法：本来の星の位置のカタログと撮影された星を対応させ、カメラのパラメータを取得し、補正する。
 
-#v0.1
+#v0.2
 ###############バグ
 #画像の上限にマウスが接すると、エラー表示が出る。
 ################タスク
 #目的：レンズのゆがみを星の位置関係から補正する
+#対応付けを始めてからも、星の位置をキーボード入力で調整可能とする
 #星の位置がおかしくなったとき用に、リセットボタンを用意する
+#星の等級に応じて、カタログのマークを大きくする。
+#画像から抽出した星の数をtkに表示する
+#対応させた星の数を表示する
+#計算したパラメータを表示する
 #画像から星を抽出するしきい値を画面から可変とする
 #カタログから星を抽出するしきい値を画面から可変とする
-#星の等級に応じて、カタログのマークを大きくする。
 #星のカタログから現在の方位や仰角を画面に表示する
 #画像から選択したポイント付近の星を抽出できるようにする。半手動
 ################済み
-#v0.1 カタログと画像の星の対応をクリックでつけ直せるようにする
+#カタログと画像の星の対応をクリックでつけ直せるようにする
 #マウスの位置を拡大した画像を表示する：ポイントしやすいように
 #線を結んだ状態を維持した状態でカタログの星を移動させる
 	#星をインデックスで識別する必要がある
+#ズーム時の十字の色を赤に変更する
+#星の選択数が少ない時に、画像の表示が消える。
+#内部パラメータに関しては、初期値を与えること
+#対応付けが20個を超えた段階でキーボード入力すると、位置合わせが勝手に発動する。
 
 _squarelength = 200
 _framelength = 50
@@ -79,7 +87,7 @@ class MainApplication(tk.Frame):
 #		self.kp_catalog_original=[]
 #		self.kp_img=[]
 		self.flag=0
-		self.mtx_old=np.array([[1,0,0],[0,1,0]])
+#		self.mtx_old=np.array([[1,0,0],[0,1,0]])
 		self.line=[]
 
 		self.create_widget()
@@ -90,7 +98,7 @@ class MainApplication(tk.Frame):
 		#グレースケール画像にする
 		img_gray = cv2.cvtColor(self.img, cv2.COLOR_RGB2GRAY)
 		#明るさに閾値を設ける(ここでは適当に200)
-		threshold=120
+		threshold=170
 		ret, new = cv2.threshold(img_gray, threshold, 255, cv2.THRESH_BINARY)
 		#画像は黒背景に白点になっているため、白点の輪郭を検出
 		contours, hierarchy = cv2.findContours(new, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -105,6 +113,7 @@ class MainApplication(tk.Frame):
 		    else:
 		        stars.append(cnt[0][0])
 		self.stars_img=np.array(stars,dtype='int32') 
+		print(self.stars_img.shape)
 	#	return stars
 
 	def center_angle(self):
@@ -160,28 +169,35 @@ class MainApplication(tk.Frame):
 #		print(self.key)
 		if self.key == "j":
 			self.stars_catalog[:,0] +=-1
-			self.left += 1
-			self.right += 1
+#			self.left += 1
+#			self.right += 1
 		elif self.key == "l":
 			self.stars_catalog[:,0] -=-1
-			self.left -= 1
-			self.right -= 1
+#			self.left -= 1
+#			self.right -= 1
 		elif self.key == "i":
 			self.stars_catalog[:,1] +=-1
-			self.top += 1
-			self.bottom += 1
+#			self.top += 1
+#			self.bottom += 1
 		elif self.key == "k":
 			self.stars_catalog[:,1] -=-1
-			self.top -= 1
-			self.bottom -= 1
-		self.center_angle()
-		self.remake_img()
+#			self.top -= 1
+#			self.bottom -= 1
+#		self.center_angle()
+#		self.remake_img()
 #		self.read_img()
 ##画像から星を抽出
 #		star_detect()
 #		
 #		self.map_catalog()
 #		self.draw_stars_d()
+		self.canvas1.delete("img")
+#カタログの星を移動させる
+#		self.stars_adjust()
+		self.draw_stars_d()
+		self.make_kp_list()
+		self.drawline()
+		self.disp_img()
 
 	def Reline(self):
 #		p1=[1,1]
@@ -208,8 +224,9 @@ class MainApplication(tk.Frame):
 		stars_catalog=self.stars_catalog_original.copy()
 		stars_catalog=np.insert(stars_catalog, 2, 0.0, axis=1)
 		stars_catalog=np.array(stars_catalog,dtype="float32")
-		stars_catalog[:,0]=(stars_catalog[:,0]-self.mtx[0,2])/self.mtx[0,0]
-		stars_catalog[:,1]=(stars_catalog[:,1]-self.mtx[1,2])/self.mtx[1,1]
+#		stars_catalog[:,0]=(stars_catalog[:,0]-self.mtx[0,2])/self.mtx[0,0]
+#		stars_catalog[:,1]=(stars_catalog[:,1]-self.mtx[1,2])/self.mtx[1,1]
+
 		# project 3D points to image plane
 #		self.rvecs = np.zeros((3, 1))
 #		self.tvecs = np.zeros((3, 1))
@@ -271,9 +288,12 @@ class MainApplication(tk.Frame):
 #				self.kp_catalog_original.append(self.stars_catalog_original[catalog_indx]) #add
 #				self.kp_img.append(self.stars_img[min_dist_indx])
 				self.kp_index.append([catalog_indx,min_dist_indx])
+				if len(self.kp_index)>2:
+#					self.check_kp()
+					self.check_kp_index()
 #				cv2.line(self.img, self.kp_catalog[-1], self.kp_img[-1], (255,255,255), thickness=1)
-		self.make_kp_list()
-		self.drawline()
+#		self.make_kp_list()
+#		self.drawline()
 		self.remake_img()
 #		self.disp_img()
 
@@ -346,8 +366,8 @@ class MainApplication(tk.Frame):
 
 #		st = [s for s in self.stars_catalog if self.left-10<s[0] and s[0]<self.right+10]
 #		self.stars_catalog = [s for s in st if self.bottom-10<s[1] and s[1]<self.top+10]
-		st = [s for s in self.stars_catalog if -100<s[0] and s[0]<w+100]
-		self.stars_catalog = [s for s in st if -100<s[1] and s[1]<h+100]
+		st = [s for s in self.stars_catalog if -200<s[0] and s[0]<w+200]
+		self.stars_catalog = [s for s in st if -200<s[1] and s[1]<h+200]
 		
 		self.stars_catalog=np.array(self.stars_catalog,dtype='int32')
 		self.stars_catalog_original=self.stars_catalog
@@ -374,8 +394,9 @@ class MainApplication(tk.Frame):
 		self.canvas1.create_image(0, 0, anchor=tk.NW, image=self.img_tk,tag="img")
 
 	def read_img(self):
-#		self.filename="20231111040000.jpg"
-		self.filename="20231111042000.jpg"
+		self.filename="20231111040000.jpg"
+#		self.filename="20231111042000.jpg"
+#		self.filename="20231123010820.jpg"
 #		self.filename="/home/kunitofukuda/workspace/Meteor/Optical2Wave/20231021/trim_img/20231021023633.jpg"
 #		self.filename="20231021035238.jpg"
 		self.img = cv2.imread(self.filename)
@@ -398,6 +419,16 @@ class MainApplication(tk.Frame):
 		self.disp_img()
 
 	def camera(self):
+		#init
+		fx=1.14731e3
+		fy=1.14814e3
+		cx=9.68865e2	#pixel
+		cy=5.32106e2	#pixel
+		init_mtx = np.array([[fx, 0.0,cx], # カメラ行列
+						[0.0,fy, cy],
+						[0.0,0.0,1.0]])
+		init_dist = np.array([-3.84386e-01,2.00727e-01,7.27513e-04,3.32499e-04,-6.59210e-02])	#正式
+
 		gray = cv2.cvtColor(self.img, cv2.COLOR_RGB2GRAY)
 #		print(gray.shape[::-1])
 #		self.objps=np.insert(self.kp_catalog,2,0.0,axis=1)
@@ -408,17 +439,21 @@ class MainApplication(tk.Frame):
 #		self.mtx=np.insert(self.mtx,2,insert_m,axis=0)
 		imgpoints=self.kp_img
 		imgpoints=np.array([imgpoints],dtype="float32")
+		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],init_mtx,init_dist,flags=1)
 #		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],None,None)
-		ret, self.mtx, self.dist, rvecs, tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],None,None)
-		rvecs=np.float32(rvecs).reshape((3,1))
-		tvecs=np.float32(tvecs).reshape((3,1))
+#		ret, self.mtx, self.dist, rvecs, tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],None,None)
+		self.rvecs=np.float32(self.rvecs).reshape((3,1))
+		self.tvecs=np.float32(self.tvecs).reshape((3,1))
 
 		#回転は、z軸だけをひろう
 		#並進は、x軸、y軸だけひろう。また、fx,fyの割合として扱う。
-		self.rvecs=np.zeros((3,1))
-		self.tvecs=np.zeros((3,1))
-		self.rvecs[2]=rvecs[2]
-		self.tvecs=tvecs
+#		self.rvecs=np.zeros((3,1))
+#		self.tvecs=np.zeros((3,1))
+#		self.rvecs=rvecs
+#		self.rvecs[2]=rvecs[2]
+#		self.tvecs=tvecs
+#		self.tvecs[0]=tvecs[0]
+#		self.tvecs[1]=tvecs[1]
 #		self.tvecs[0]=tvecs[0]/self.mtx[0,0]
 #		self.tvecs[1]=tvecs[1]/self.mtx[1,1]
 
@@ -449,11 +484,11 @@ class MainApplication(tk.Frame):
 		print("dist : ")
 		print(self.dist)
 		print("rvecs : ")
-#		print(self.rvecs)
-		print(rvecs)
+		print(self.rvecs)
+#		print(rvecs)
 		print("tvecs : ")
-#		print(self.tvecs)
-		print(tvecs)
+		print(self.tvecs)
+#		print(tvecs)
 
 #		s_point=np.array([self.mtx[0,2],self.mtx[1,2]],dtype="int32")
 #		print(s_point)
@@ -484,11 +519,6 @@ class MainApplication(tk.Frame):
 		# Method 1 to undistort the image
 		dst = cv2.undistort(img, self.mtx, self.dist, None, newcameramtx)
 		
-		# undistort関数と同じ結果が返されるので、今回はコメントアウト(initUndistortRectifyMap()関数)
-		# Method 2 to undistort the image
-		#mapx,mapy=cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
-		#dst = cv2.remap(img,mapx,mapy,cv2.INTER_LINEAR)
-    
 		#歪み補正した画像をimg_undistortフォルダへ保存
 		cv2.imwrite('undistort_' + self.filename, dst)
 #		cv2.imwrite('undistort_' + str(os.path.basename(filepath)), dst)
@@ -496,36 +526,37 @@ class MainApplication(tk.Frame):
 		cv2.destroyAllWindows()
 
 	def stars_adjust(self):
-		self.kp_catalog=np.array(self.kp_catalog)
-		self.kp_catalog_original=np.array(self.kp_catalog_original)
-		self.kp_img=np.array(self.kp_img)
+		if len(self.kp_index)!=0:
+			self.kp_catalog=np.array(self.kp_catalog)
+			self.kp_catalog_original=np.array(self.kp_catalog_original)
+			self.kp_img=np.array(self.kp_img)
 #		print(self.kp_catalog,self.kp_img)
-		if self.kp_catalog.shape[0]>5:
-			#カメラの歪みを考慮したカタログ星の位置を示す
-			self.camera()
-			self.calc_catalog_point()
+			if self.kp_catalog.shape[0]>20:
+				#カメラの歪みを考慮したカタログ星の位置を示す
+				self.camera()
+				self.calc_catalog_point()
 
 #			self.mtx,inliers=cv2.estimateAffinePartial2D(self.kp_catalog_original,self.kp_img)
 #			mtx,inliers=cv2.estimateAffinePartial2D(self.kp_img,self.kp_catalog)
 #			mtx,inliers=cv2.estimateAffine2D(self.kp_catalog_original,self.kp_img)
-		else:
-			self.mtx=np.array([[1,0,0],[0,1,0]])
-			inliers=np.array([[0]])
-		insert_m=[0,0,1]
-		self.mtx=np.insert(self.mtx,2,insert_m,axis=0)
-		self.mtx_old=np.insert(self.mtx_old,2,insert_m,axis=0)
-		self.mtx=np.dot(self.mtx,self.mtx_old)
-#		mtx=np.delete(mtx,2,axis=0)
-#		print(inliers)
-#		print(sum(inliers))
-#		print(self.mtx)
-#回転角を示す
-#		degree = np.rad2deg(-np.arctan2(self.mtx[0, 1], self.mtx[0, 0]))
-
-#		self.calc_stars_point()
-#		self.rotate_point()
-		self.mxt_old=self.mtx
-		self.mtx_old=self.mtx_old[:2,:]
+#		else:
+#			self.mtx=np.array([[1,0,0],[0,1,0]])
+#			inliers=np.array([[0]])
+#		insert_m=[0,0,1]
+#		self.mtx=np.insert(self.mtx,2,insert_m,axis=0)
+#		self.mtx_old=np.insert(self.mtx_old,2,insert_m,axis=0)
+#		self.mtx=np.dot(self.mtx,self.mtx_old)
+##		mtx=np.delete(mtx,2,axis=0)
+##		print(inliers)
+##		print(sum(inliers))
+##		print(self.mtx)
+##回転角を示す
+##		degree = np.rad2deg(-np.arctan2(self.mtx[0, 1], self.mtx[0, 0]))
+#
+##		self.calc_stars_point()
+##		self.rotate_point()
+#		self.mxt_old=self.mtx
+#		self.mtx_old=self.mtx_old[:2,:]
 
 	def calc_stars_point(self):
 		stars_catalog_calc=np.insert(self.stars_catalog_original, 2, 1, axis=1)
@@ -569,17 +600,12 @@ class MainApplication(tk.Frame):
 		if sd!=0:
 			if self.flag==0:
 				self.kp_index_catalog=sd
-#				self.kp_catalog.append(self.stars_catalog[sd])
-#				self.kp_catalog_original.append(self.stars_catalog_original[sd]) #add
 				self.label2["text"]=str(self.stars_catalog[sd])
 				self.flag=1
 			else:
 				self.kp_index.append([self.kp_index_catalog,sd])
-#				self.kp_img.append(self.stars_img[sd])
 				self.label3["text"]=str(self.stars_img[sd])
-#				if len(self.kp_img)>2:
 				if len(self.kp_index)>2:
-#					self.check_kp()
 					self.check_kp_index()
 
 				self.make_kp_list()
@@ -706,8 +732,8 @@ class MainApplication(tk.Frame):
 #		self.sub_cv1 = self.canvas2.create_image(0, 0, image=self.sub_image1, anchor=tk.NW, tag='cv1')
 		self.sub_cv1 = self.canvas2.create_image(0, 0, image=self.img_tka, anchor=tk.NW, tag='cv1')
 
-		self.canvas2.create_line(_squarelength/2, 0,_squarelength/2, _squarelength,tag="line1")
-		self.canvas2.create_line(0, _squarelength/2,_squarelength, _squarelength/2,tag="line2")
+		self.canvas2.create_line(_squarelength/2, 0,_squarelength/2, _squarelength,fill="#ff0000",tag="line1")
+		self.canvas2.create_line(0, _squarelength/2,_squarelength, _squarelength/2,fill="#ff0000",tag="line2")
 
 def main():
 	root = tk.Tk()
