@@ -31,7 +31,7 @@ def map_catalog(filename,img):
 	seiza = STAR_ALTAZ.get_constellation()
 	z = (seiza[:,None]==np.unique(seiza)).argmax(1)
 	iro = np.stack([z/87,z%5/4,1-z%4/4],1)
-	flux_v = (5-hoshi['FLUX_V'])*1
+	flux_v = (10-hoshi['FLUX_V'])*1
 #	print(flux_v)
 	
 	AZ  = STAR_ALTAZ.az.deg

@@ -21,12 +21,11 @@ import math
 
 #v0.2
 ###############バグ
-#画像の上限にマウスが接すると、エラー表示が出る。
 ################タスク
 #目的：レンズのゆがみを星の位置関係から補正する
+#次回目標：画像から自動的に星の位置を合わせる
 #対応付けを始めてからも、星の位置をキーボード入力で調整可能とする
 #星の位置がおかしくなったとき用に、リセットボタンを用意する
-#星の等級に応じて、カタログのマークを大きくする。
 #画像から抽出した星の数をtkに表示する
 #対応させた星の数を表示する
 #計算したパラメータを表示する
@@ -43,15 +42,21 @@ import math
 #星の選択数が少ない時に、画像の表示が消える。
 #内部パラメータに関しては、初期値を与えること
 #対応付けが20個を超えた段階でキーボード入力すると、位置合わせが勝手に発動する。
+#星の等級に応じて、カタログのマークを大きくする。
+#画像の上限にマウスが接すると、エラー表示が出る。
 
 _squarelength = 200
 _framelength = 50
 
 #def draw_stars(img,stars,color_s):
-def draw_stars(img,stars,color_s,maker):
-	for s_point in stars:
+def draw_stars(img,stars,color_s,maker,msizes):
+	for s_point,msize in zip(stars,msizes):
+#		print(msize)
 #		cv2.drawMarker(img, s_point, color_s, markerType=cv2.MARKER_STAR, markerSize=5, thickness=1, line_type=cv2.LINE_8)
-		cv2.drawMarker(img, s_point, color_s, markerType=maker, markerSize=10, thickness=1, line_type=cv2.LINE_8)
+#		cv2.drawMarker(img, s_point, color_s, markerType=maker, markerSize=10, thickness=1, line_type=cv2.LINE_8)
+		cv2.circle(img, s_point, msize, color_s, thickness=-1, lineType=cv2.LINE_AA)
+#		cv2.drawMarker(img, s_point, color_s, markerType=maker, markerSize=msize, thickness=1, line_type=cv2.LINE_8)
+#		cv2.drawMarker(img, s_point, color_s, markerType=maker, thickness=msize, line_type=cv2.LINE_8)
 	
 class MainApplication(tk.Frame):
 	def __init__(self, master):
@@ -66,8 +71,10 @@ class MainApplication(tk.Frame):
 #		self.stars_img=star_detect(self.img)
 		self.star_detect()
 		self.map_catalog()
-		color_img=(0,0,255)
-		draw_stars(self.img,self.stars_img,color_img,cv2.MARKER_SQUARE)
+		color_s=(0,0,255)
+		for s_point in self.stars_img:
+			cv2.drawMarker(self.img, s_point, color_s, markerType=cv2.MARKER_SQUARE, thickness=1, line_type=cv2.LINE_8)
+#		draw_stars(self.img,self.stars_img,color_img,cv2.MARKER_SQUARE,msizes)
 #		self.img_stars=self.img.copy()
 		#self.img_stars：抽出した星が書き込まれている
 		self.img_stars=self.img.copy()	
@@ -98,7 +105,7 @@ class MainApplication(tk.Frame):
 		#グレースケール画像にする
 		img_gray = cv2.cvtColor(self.img, cv2.COLOR_RGB2GRAY)
 		#明るさに閾値を設ける(ここでは適当に200)
-		threshold=170
+		threshold=120
 		ret, new = cv2.threshold(img_gray, threshold, 255, cv2.THRESH_BINARY)
 		#画像は黒背景に白点になっているため、白点の輪郭を検出
 		contours, hierarchy = cv2.findContours(new, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -168,19 +175,19 @@ class MainApplication(tk.Frame):
 		self.key=event.keysym
 #		print(self.key)
 		if self.key == "j":
-			self.stars_catalog[:,0] +=-1
+			self.stars_catalog[:,0] +=-5
 #			self.left += 1
 #			self.right += 1
 		elif self.key == "l":
-			self.stars_catalog[:,0] -=-1
+			self.stars_catalog[:,0] -=-5
 #			self.left -= 1
 #			self.right -= 1
 		elif self.key == "i":
-			self.stars_catalog[:,1] +=-1
+			self.stars_catalog[:,1] +=-5
 #			self.top += 1
 #			self.bottom += 1
 		elif self.key == "k":
-			self.stars_catalog[:,1] -=-1
+			self.stars_catalog[:,1] -=-5
 #			self.top -= 1
 #			self.bottom -= 1
 #		self.center_angle()
@@ -330,7 +337,8 @@ class MainApplication(tk.Frame):
 		self.seiza = STAR_ALTAZ.get_constellation()
 		z = (self.seiza[:,None]==np.unique(self.seiza)).argmax(1)
 		iro = np.stack([z/87,z%5/4,1-z%4/4],1)
-		self.s = (5-hoshi['FLUX_V'])*1
+		self.flux_v = (6-hoshi['FLUX_V'])+3
+		self.flux_v=np.int32(self.flux_v)
 		
 		self.AZ  = STAR_ALTAZ.az.deg
 		self.ALT = STAR_ALTAZ.alt.deg
@@ -348,8 +356,8 @@ class MainApplication(tk.Frame):
 		#left=center_x-width/2
 		#right=center_x+width/2
 		#ATOMCAM2 水平 102°、垂直 54.9°
-		self.left=146
-		self.right=248
+		self.left=125
+		self.right=270
 		self.top=68
 		self.bottom=12
 
@@ -377,7 +385,8 @@ class MainApplication(tk.Frame):
 		self.img=self.img_stars.copy()
 		color_catalog=(0,255,0)
 #		draw_stars(self.img,self.stars_catalog,color_catalog)
-		draw_stars(self.img,self.stars_catalog,color_catalog,cv2.MARKER_STAR)
+#		draw_stars(self.img,self.stars_catalog,color_catalog,cv2.MARKER_STAR)
+		draw_stars(self.img,self.stars_catalog,color_catalog,cv2.MARKER_DIAMOND,self.flux_v)
 		#self.img_stars2：画像とカタログから抽出した星が描かれている
 		self.img_stars2=self.img.copy()
 #		cv2.imwrite('out.jpg', self.img)
@@ -435,11 +444,12 @@ class MainApplication(tk.Frame):
 		self.objps=np.insert(self.kp_catalog_original,2,0.0,axis=1)
 		self.objps=np.array([self.objps],dtype="float32")
 #		self.objps=np.float32(self.objps).reshape(-1,3)
-		print(self.objps)
+#		print(self.objps)
 #		self.mtx=np.insert(self.mtx,2,insert_m,axis=0)
 		imgpoints=self.kp_img
 		imgpoints=np.array([imgpoints],dtype="float32")
-		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],init_mtx,init_dist,flags=1)
+		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],init_mtx,init_dist,flags=cv2.CALIB_USE_INTRINSIC_GUESS+cv2.CALIB_THIN_PRISM_MODEL+cv2.CALIB_RATIONAL_MODEL )
+#		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],init_mtx,init_dist,flags=1)
 #		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],None,None)
 #		ret, self.mtx, self.dist, rvecs, tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],None,None)
 		self.rvecs=np.float32(self.rvecs).reshape((3,1))
@@ -701,7 +711,12 @@ class MainApplication(tk.Frame):
 		x=x/2
 		y=y/2
 #		self.frame_refresh()
-		self.crop_frame = (x-_framelength/2, y-_framelength/2, x+_framelength/2, y+_framelength/2)	
+#		self.crop_frame = (x-_framelength/2, y-_framelength/2, x+_framelength/2, y+_framelength/2)	
+		self.crop_frame = [x-_framelength/2, y-_framelength/2, x+_framelength/2, y+_framelength/2]
+		if self.crop_frame[0]<0:
+			self.crop_frame[0]=0
+		if self.crop_frame[1]<0:
+			self.crop_frame[1]=0
 #		self.rectframe = self.canvas1.create_rectangle(self.crop_frame, outline='#AAA', width=2, tag='rect')
 
 	def frame_refresh(self):
@@ -718,11 +733,36 @@ class MainApplication(tk.Frame):
 
 	def canvas_set(self, x, y):
 		# 枠線内をクロップし、ズームする
-		zoom_mag = _squarelength / _framelength
+#		zoom_mag = _squarelength / _framelength
 		self.croped = self.img[2*int(self.crop_frame[1]):2*int(self.crop_frame[3]),2*int(self.crop_frame[0]):2*int(self.crop_frame[2]),:]
+#		self.croped = self.img[int(self.crop_frame[1]):int(self.crop_frame[3]),int(self.crop_frame[0]):int(self.crop_frame[2]),:]
 
 		# ズームした画像を右側canvasに当てはめる
 		self.image_refresh()
+
+#		print(self.croped.shape)
+		#画像の端の場合の対処
+		h,w=self.croped.shape[:2]
+		if w<100 or h<100:
+			size=(2*_framelength,2*_framelength,3)
+			croped=np.zeros(size,np.uint8)
+			if self.crop_frame[0]==0:
+				xs=2*_framelength-w
+				xe=2*_framelength
+			else:
+				xs=0
+				xe=w
+			if self.crop_frame[1]==0:
+				ys=2*_framelength-h
+				ye=2*_framelength
+			else:
+				ys=0
+				ye=h
+
+#			print(w,h)
+#			print(xs,xe,ys,ye)
+			croped[ys:ye,xs:xe,:]=self.croped
+			self.croped=croped
 
 		self.img_dispa = cv2.resize(self.croped, dsize=(200,200))
 		self.img_rgba = cv2.cvtColor(self.img_dispa, cv2.COLOR_BGR2RGB) # imreadはBGRなのでRGBに変換
