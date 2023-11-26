@@ -13,27 +13,30 @@ import datetime
 
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 import tkinter as tk
-import pandas as pd
+import tkinter.filedialog
+#import pandas as pd
 import datetime
 import os
 import math
+import csv
 
 #目的：レンズのゆがみを星の位置関係から補正する
 #手法：本来の星の位置のカタログと撮影された星を対応させ、カメラのパラメータを取得し、補正する。
 
-#v0.2
+#v0.3
 ###############バグ
 ################タスク
 #目的：レンズのゆがみを星の位置関係から補正する
 #次回目標：画像から自動的に星の位置を合わせる
 #自動で星を対応付けるのと、カメラを計算するのを分離する
+#計算したパラメータを用いて画像を補正する。
+#位置情報等を保存し、読み込みも可能とする
 #複数の画像から補正を行うようにする。
 #１枚の画像から補正を計算し、次の画像から計算したパラメータを使って星を補正するモードと初期値を使用する切り替えボタンをつける。
 #カメラの種類を選択可能とする：通常、魚眼、360度
-#星の位置がおかしくなったとき用に、リセットボタンを用意する
 #画像から抽出した星の数をtkに表示する
 #対応させた星の数を表示する
-#計算したパラメータを表示する
+#計算したパラメータを表示する。誤差も
 #画像から星を抽出するしきい値を画面から可変とする
 #カタログから星を抽出するしきい値を画面から可変とする
 #星のカタログから現在の方位や仰角を画面に表示する
@@ -50,6 +53,8 @@ import math
 #星の等級に応じて、カタログのマークを大きくする。
 #画像の上限にマウスが接すると、エラー表示が出る。
 #対応付けを始めてからも、星の位置をキーボード入力で調整可能とする
+#星の位置がおかしくなったとき用に、リセットボタンを用意する
+#計算したパラメータを読み込めるようにする。
 
 _squarelength = 200
 _framelength = 50
@@ -68,7 +73,7 @@ class MainApplication(tk.Frame):
 	def __init__(self, master):
 		super().__init__(master)
 		self.master = master
-		self.master.title("MOSAIC")
+		self.master.title("LeCoSAI")
 		self.master.geometry('1300x700')
 
 		# 画像を読み込み
@@ -161,6 +166,17 @@ class MainApplication(tk.Frame):
 
 		self.button = tk.Button(self.master, text="Auto stars",command=self.auto)
 		self.button.place(x=750, y=600)
+		self.button_calib=tk.Button(text="CalibData",command=self.openfile,width=7)
+		self.button_calib.place(x=1200,y=222)
+
+		self.entry_box_calib = tk.Entry(width=20,state="readonly") #読み込み専用に設定
+		self.entry_box_calib.place(x=1000, y=230)
+
+		self.button_calib=tk.Button(text="StarsMove",command=self.stars_move,width=7)
+		self.button_calib.place(x=1200,y=260)
+
+		self.button_calib=tk.Button(text="Reset",command=self.Reset,width=7)
+		self.button_calib.place(x=1200,y=300)
 
 		self.disp_img()
 
@@ -176,6 +192,45 @@ class MainApplication(tk.Frame):
 #		image_title = tk.Label(text='=>', bg = "white", font=font)
 		image_title = tk.Label(text='=>', bg = "white")
 		image_title.place(x=500, y=610, anchor=tk.NW)
+
+	def Reset(self):
+		self.canvas1.delete("img")
+		self.stars_catalog=self.stars_catalog_original.copy()
+		self.draw_stars_d()
+#		self.make_kp_list()
+		self.drawline()
+		self.disp_img()
+
+	def stars_move(self):
+		#星を移動させる
+		self.calc_catalog_point()
+		self.draw_stars_d()
+		self.make_kp_list()
+		self.drawline()
+		self.disp_img()
+#		print(move)
+
+	def openfile(self):
+		#パラメータの読み込み mtx(K) dist(d) tvecs rvecs
+		self.entry_box_calib.configure(state="normal") #Entry_boxを書き込み可に設定
+		idir="./" #初期フォルダを指定
+		filetype=[("CSV",".csv")]
+		filename = tk.filedialog.askopenfilename(filetypes=filetype,initialdir=idir)
+		self.entry_box_calib.insert(tk.END,filename) #選択ファイルを表示させる
+		self.entry_box_calib.configure(state="readonly") #Entry_boxを読み込み専用に戻す
+		print(filename)
+		with open(filename, encoding='utf8', newline='') as f:
+			csvreader = csv.reader(f)
+			content = [row for row in csvreader]
+#		print(content)
+		self.mtx=np.float32(content[:3]).reshape(3,3)
+#		print(self.read_mtx)
+		self.dist=np.float32(content[3])
+#		print(self.read_dist)
+		self.rvecs=np.float32(content[4])
+#		print(self.read_rvecs)
+		self.tvecs=np.float32(content[5])
+#		print(self.read_tvecs)
 
 	def key_event(self,event):
 		self.key=event.keysym
@@ -417,8 +472,8 @@ class MainApplication(tk.Frame):
 
 	def read_img(self):
 #		self.filename="20231111042000.jpg"	#test_img ok
-#		self.filename="20231111040000.jpg"	#real ok
-		self.filename="20231122050000.jpg"	#real ok
+		self.filename="20231111040000.jpg"	#real ok
+#		self.filename="20231122050000.jpg"	#real ok
 #		self.filename="20231123010820.jpg"
 #		self.filename="/home/kunitofukuda/workspace/Meteor/Optical2Wave/20231021/trim_img/20231021023633.jpg"
 #		self.filename="20231021035238.jpg"
@@ -523,10 +578,25 @@ class MainApplication(tk.Frame):
 #		self.undistortion()
 
 	def save_para(self):
-		k_filename="K_calibcamera.csv"
-		d_filename="D_calibcamera.csv"
-		np.savetxt(k_filename, self.mtx, delimiter=',', fmt="%0.5e")
-		np.savetxt(d_filename, self.dist, delimiter=',', fmt="%0.5e")
+#		calib_data=[self.mtx,self.dist,self.rvecs,self.tvecs]
+		save_dist=np.float32(self.dist).reshape(1,-1)
+		save_rvecs=np.float32(self.rvecs).reshape(1,-1)
+		save_tvecs=np.float32(self.tvecs).reshape(1,-1)
+#		print(calib_data)
+		filename_calib="calibcamera.csv"
+#		np.savetxt(filename_calib, calib_data, delimiter=',', fmt="%0.5e")
+		np.savetxt(filename_calib, self.mtx, delimiter=',', fmt="%0.5e")
+		with open(filename_calib, "a") as f:
+#			np.savetxt(f, self.dist, delimiter=',', fmt="%0.5e")
+			np.savetxt(f, save_dist, delimiter=',', fmt="%0.5e")
+#		with open(filename_calib, "a") as f:
+			np.savetxt(f, save_rvecs, delimiter=',', fmt="%0.5e")
+#		with open(filename_calib, "a") as f:
+			np.savetxt(f, save_tvecs, delimiter=',', fmt="%0.5e")
+#		k_filename="K_calibcamera.csv"
+#		d_filename="D_calibcamera.csv"
+#		np.savetxt(k_filename, self.mtx, delimiter=',', fmt="%0.5e")
+#		np.savetxt(d_filename, self.dist, delimiter=',', fmt="%0.5e")
 
 	def undistortion(self):
 		# Using the derived camera parameters to undistort the image
