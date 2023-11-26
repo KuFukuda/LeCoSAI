@@ -15,7 +15,6 @@ from PIL import Image, ImageDraw, ImageFont, ImageTk
 import tkinter as tk
 import tkinter.filedialog
 #import pandas as pd
-import datetime
 import os
 import math
 import csv
@@ -24,13 +23,15 @@ import csv
 #手法：本来の星の位置のカタログと撮影された星を対応させ、カメラのパラメータを取得し、補正する。
 
 #v0.3
+###############要検証
+#画像の星の明るさとカタログの明るさが一致していない気がする
 ###############バグ
 ################タスク
 #目的：レンズのゆがみを星の位置関係から補正する
 #次回目標：画像から自動的に星の位置を合わせる
-#自動で星を対応付けるのと、カメラを計算するのを分離する
-#計算したパラメータを用いて画像を補正する。
 #位置情報等を保存し、読み込みも可能とする
+#色々な画像サイズに対応する：今は、1920x1080で決め打ち
+#計算したパラメータを用いて画像を補正する。
 #複数の画像から補正を行うようにする。
 #１枚の画像から補正を計算し、次の画像から計算したパラメータを使って星を補正するモードと初期値を使用する切り替えボタンをつける。
 #カメラの種類を選択可能とする：通常、魚眼、360度
@@ -55,6 +56,11 @@ import csv
 #対応付けを始めてからも、星の位置をキーボード入力で調整可能とする
 #星の位置がおかしくなったとき用に、リセットボタンを用意する
 #計算したパラメータを読み込めるようにする。
+#自動で星を対応付けるのと、カメラパラメータの計算を分離する
+#日時を設定可能とする
+#画像を選択可能とする
+#位置情報を入力可能とする
+#画像の取り込みで画面表示、日時と場所を指定してカタログ表示
 
 _squarelength = 200
 _framelength = 50
@@ -76,20 +82,20 @@ class MainApplication(tk.Frame):
 		self.master.title("LeCoSAI")
 		self.master.geometry('1300x700')
 
-		# 画像を読み込み
-		self.read_img()
-#画像から星を抽出
-#		self.stars_img=star_detect(self.img)
-		self.star_detect()
-		self.map_catalog()
-		color_s=(0,0,255)
-		for s_point in self.stars_img:
-			cv2.drawMarker(self.img, s_point, color_s, markerType=cv2.MARKER_SQUARE, thickness=1, line_type=cv2.LINE_8)
-#		draw_stars(self.img,self.stars_img,color_img,cv2.MARKER_SQUARE,msizes)
-#		self.img_stars=self.img.copy()
-		#self.img_stars：抽出した星が書き込まれている
-		self.img_stars=self.img.copy()	
-		self.draw_stars_d()
+#		# 画像を読み込み
+#		self.read_img()
+##画像から星を抽出
+##		self.stars_img=star_detect(self.img)
+#		self.star_detect()
+#		self.map_catalog()
+#		color_s=(0,0,255)
+#		for s_point in self.stars_img:
+#			cv2.drawMarker(self.img, s_point, color_s, markerType=cv2.MARKER_SQUARE, thickness=1, line_type=cv2.LINE_8)
+##		draw_stars(self.img,self.stars_img,color_img,cv2.MARKER_SQUARE,msizes)
+##		self.img_stars=self.img.copy()
+#		#self.img_stars：抽出した星が書き込まれている
+#		self.img_stars=self.img.copy()	
+#		self.draw_stars_d()
 
 #		img_star_catalog = np.full(self.img.shape, 0, dtype=np.uint8)
 #		color_img=(255,255,255)
@@ -100,16 +106,18 @@ class MainApplication(tk.Frame):
 #		cv2.imwrite('20231021032633.jpg', img_star_catalog)
 		
 		#kp_index : [catalog_index,img_index]
+		self.img_flag=0
 		self.kp_index=[]
 #		self.kp_catalog=[]
 #		self.kp_catalog_original=[]
 #		self.kp_img=[]
 		self.flag=0
+		self.specific_flag=0
 #		self.mtx_old=np.array([[1,0,0],[0,1,0]])
 		self.line=[]
 
 		self.create_widget()
-		self.center_angle()
+#		self.center_angle()
 
 #	def star_detect(image):
 	def star_detect(self):
@@ -134,14 +142,16 @@ class MainApplication(tk.Frame):
 		print(self.stars_img.shape)
 	#	return stars
 
-	def center_angle(self):
-#中心角度の表示
-		self.x=(self.left+self.right)/2
-		self.y=(self.top+self.bottom)/2
-		self.label4["text"] = str([self.x,self.y]) 
+#	def center_angle(self):
+##中心角度の表示
+#		self.x=(self.left+self.right)/2
+#		self.y=(self.top+self.bottom)/2
+#		self.label4["text"] = str([self.x,self.y]) 
 
 	def create_widget(self):
-		h,w=self.img.shape[:2]
+#		h,w=self.img.shape[:2]
+		h=1080
+		w=1920
 		self.canvas1 = tk.Canvas(self.master, width=w, height=h)
 #		self.canvas1.pack()
 		self.canvas1.place(x=0, y=0)
@@ -166,19 +176,84 @@ class MainApplication(tk.Frame):
 
 		self.button = tk.Button(self.master, text="Auto stars",command=self.auto)
 		self.button.place(x=750, y=600)
+
+		#画像の選択
+		self.entry_box_img = tk.Entry(width=20,state="readonly")
+		self.entry_box_img.place(x=1000, y=230)
+		self.button_img=tk.Button(text="Image",command=self.openfile_img,width=7)
+		self.button_img.place(x=1200,y=222)
+
+		#読み込むカメラパラメータの選択
+		self.entry_box_calib = tk.Entry(width=20,state="readonly") 
+		self.entry_box_calib.place(x=1000, y=270)
 		self.button_calib=tk.Button(text="CalibData",command=self.openfile,width=7)
-		self.button_calib.place(x=1200,y=222)
+		self.button_calib.place(x=1200,y=262)
 
-		self.entry_box_calib = tk.Entry(width=20,state="readonly") #読み込み専用に設定
-		self.entry_box_calib.place(x=1000, y=230)
+		self.button_mstar=tk.Button(text="MoveStars",command=self.stars_move,width=7)
+		self.button_mstar.place(x=1050,y=300)
 
-		self.button_calib=tk.Button(text="StarsMove",command=self.stars_move,width=7)
-		self.button_calib.place(x=1200,y=260)
+		self.button_reset=tk.Button(text="Reset",command=self.Reset,width=7)
+		self.button_reset.place(x=1150,y=300)
 
-		self.button_calib=tk.Button(text="Reset",command=self.Reset,width=7)
-		self.button_calib.place(x=1200,y=300)
+		#日時入力
+		self.date_y = tk.Label(text='Date:')
+		self.date_y.place(x=1000, y=340, anchor=tk.NW)
 
-		self.disp_img()
+		self.entry_box_y = tk.Entry(width=4)
+		self.entry_box_y.place(x=1040, y=340)
+		self.date_y = tk.Label(text='/')
+		self.date_y.place(x=1075, y=340, anchor=tk.NW)
+
+		self.entry_box_mo = tk.Entry(width=3)
+		self.entry_box_mo.place(x=1085, y=340)
+		self.date_mo = tk.Label(text='/')
+		self.date_mo.place(x=1110, y=340, anchor=tk.NW)
+
+		self.entry_box_day = tk.Entry(width=3)
+		self.entry_box_day.place(x=1120, y=340)
+
+		self.entry_box_h = tk.Entry(width=3)
+		self.entry_box_h.place(x=1154, y=340)
+		self.date_h = tk.Label(text=':')
+		self.date_h.place(x=1180, y=340, anchor=tk.NW)
+
+		self.entry_box_min = tk.Entry(width=3)
+		self.entry_box_min.place(x=1187, y=340)
+		self.date_min = tk.Label(text=':')
+		self.date_min.place(x=1213, y=340, anchor=tk.NW)
+
+		self.entry_box_sec = tk.Entry(width=3)
+		self.entry_box_sec.place(x=1220, y=340)
+
+		#場所の入力
+		self.lon = tk.Label(text='Lon[deg]:')
+		self.lon.place(x=1000, y=380, anchor=tk.NW)
+		self.entry_box_lon = tk.Entry(width=10)
+		self.entry_box_lon.place(x=1080, y=380)
+
+		self.lat = tk.Label(text='Lat[deg]:')
+		self.lat.place(x=1000, y=410, anchor=tk.NW)
+		self.entry_box_lat = tk.Entry(width=10)
+		self.entry_box_lat.place(x=1080, y=410)
+
+		self.H = tk.Label(text='Hight[m]:')	#高度[m]
+		self.H.place(x=1000, y=440, anchor=tk.NW)
+		self.entry_box_H = tk.Entry(width=10)
+		self.entry_box_H.place(x=1080, y=440)
+
+		self.button_posi=tk.Button(text="Input",command=self.DateLocInput,width=7)
+		self.button_posi.place(x=1200,y=385)
+
+		self.button_save=tk.Button(text="Save",command=self.LocationSave,width=7)
+		self.button_save.place(x=1200,y=425)
+
+		#場所情報の読み込み
+		self.entry_box_loc = tk.Entry(width=20,state="readonly")
+		self.entry_box_loc.place(x=1000, y=470)
+		self.button_loc=tk.Button(text="Location",command=self.openfile_loc,width=7)
+		self.button_loc.place(x=1200,y=462)
+
+#		self.disp_img()
 
 		# canvas1にマウスが乗った場合、離れた場合のイベントをセット。
 		self.canvas1.bind('<Motion>', self.mouse_motion)
@@ -190,8 +265,66 @@ class MainApplication(tk.Frame):
 
 #		font = tk.font.Font(family='Arial', size=16, weight='bold')
 #		image_title = tk.Label(text='=>', bg = "white", font=font)
-		image_title = tk.Label(text='=>', bg = "white")
+		image_title = tk.Label(text='=>')
 		image_title.place(x=500, y=610, anchor=tk.NW)
+
+	def openfile_loc(self):
+		self.entry_box_loc.configure(state="normal") #Entry_boxを書き込み可に設定
+		idir="./" #初期フォルダを指定
+		filetype=[("CSV",".csv")]
+		filename = tk.filedialog.askopenfilename(filetypes=filetype,initialdir=idir)
+		self.entry_box_loc.insert(tk.END,filename) #選択ファイルを表示
+		self.entry_box_loc.configure(state="readonly") #読み込み専用に戻す
+		print(filename)
+
+		with open(filename, encoding='utf8', newline='') as f:
+			csvreader = csv.reader(f)
+			content = [row for row in csvreader]
+		self.plon=np.float32(content[0])
+		self.plat=np.float32(content[1])
+		self.pH=np.float32(content[2])
+
+		self.entry_box_lon.insert(tk.END,str(self.plon[0]))
+		self.entry_box_lat.insert(tk.END,str(self.plat[0]))
+		self.entry_box_H.insert(tk.END,str(self.pH[0]))
+
+		self.DateLocInput()
+
+	def LocationSave(self):
+		filename="Location.csv"
+		specific_data=[self.plon,self.plat,self.pH]
+		np.savetxt(filename, specific_data, delimiter=',', fmt="%0.5e")
+		print("SaveLocation")
+
+#Location
+	def DateLocInput(self):
+		y=self.entry_box_y.get()
+		mo=self.entry_box_mo.get()
+		day=self.entry_box_day.get()
+		ho=self.entry_box_h.get()
+		minu=self.entry_box_min.get()
+		sec=self.entry_box_sec.get()
+
+		tz = TimezoneInfo(9*u.hour) # 時間帯を決める。Tokyoで9時間
+		toki = datetime.datetime(int(y),int(mo),int(day),int(ho),int(minu),int(sec),tzinfo=tz)
+		self.obstime = Time(toki)
+		print("DateInput")
+
+#	def PosiInput(self):
+		self.plon=self.entry_box_lon.get()
+		self.plon=np.float32(self.plon)
+		self.plat=self.entry_box_lat.get()
+		self.plat=np.float32(self.plat)
+		self.pH=self.entry_box_H.get()
+		self.pH=np.float32(self.pH)
+		self.location = EarthLocation(lon=self.plon*u.deg, lat=self.plat*u.deg, height=self.pH*u.m)
+		print("PosiInput")
+		self.specific_flag=1
+
+		self.canvas1.delete("img")
+		self.map_catalog()
+		self.draw_stars_d()
+		self.disp_img()
 
 	def Reset(self):
 		self.canvas1.delete("img")
@@ -210,14 +343,42 @@ class MainApplication(tk.Frame):
 		self.disp_img()
 #		print(move)
 
+	def openfile_img(self):
+		self.entry_box_img.configure(state="normal") #Entry_boxを書き込み可に設定
+		idir="./" #初期フォルダを指定
+		filetype=[("JPG",".jpg")]
+		self.filename = tk.filedialog.askopenfilename(filetypes=filetype,initialdir=idir)
+		self.entry_box_img.insert(tk.END,self.filename) #選択ファイルを表示
+		self.entry_box_img.configure(state="readonly") #読み込み専用に戻す
+		print(self.filename)
+
+		# 画像を読み込み
+		self.img_flag=1
+		self.read_img()
+#画像から星を抽出
+#		self.stars_img=star_detect(self.img)
+		self.star_detect()
+		color_s=(0,0,255)
+		for s_point in self.stars_img:
+			cv2.drawMarker(self.img, s_point, color_s, markerType=cv2.MARKER_SQUARE, thickness=1, line_type=cv2.LINE_8)
+#		draw_stars(self.img,self.stars_img,color_img,cv2.MARKER_SQUARE,msizes)
+#		self.img_stars=self.img.copy()
+		#self.img_stars：抽出した星が書き込まれている
+		self.img_stars=self.img.copy()	
+		if self.specific_flag==1:
+			self.map_catalog()
+			self.draw_stars_d()
+		self.canvas1.delete("img")
+		self.disp_img()
+
 	def openfile(self):
 		#パラメータの読み込み mtx(K) dist(d) tvecs rvecs
 		self.entry_box_calib.configure(state="normal") #Entry_boxを書き込み可に設定
 		idir="./" #初期フォルダを指定
 		filetype=[("CSV",".csv")]
 		filename = tk.filedialog.askopenfilename(filetypes=filetype,initialdir=idir)
-		self.entry_box_calib.insert(tk.END,filename) #選択ファイルを表示させる
-		self.entry_box_calib.configure(state="readonly") #Entry_boxを読み込み専用に戻す
+		self.entry_box_calib.insert(tk.END,filename) #選択ファイルを表示
+		self.entry_box_calib.configure(state="readonly") #読み込み専用に戻す
 		print(filename)
 		with open(filename, encoding='utf8', newline='') as f:
 			csvreader = csv.reader(f)
@@ -259,13 +420,14 @@ class MainApplication(tk.Frame):
 #		
 #		self.map_catalog()
 #		self.draw_stars_d()
-		self.canvas1.delete("img")
-#カタログの星を移動させる
-#		self.stars_adjust()
-		self.draw_stars_d()
-		self.make_kp_list()
-		self.drawline()
-		self.disp_img()
+		if self.specific_flag==1:
+			self.canvas1.delete("img")
+	#カタログの星を移動させる
+	#		self.stars_adjust()
+			self.draw_stars_d()
+			self.make_kp_list()
+			self.drawline()
+			self.disp_img()
 
 	def Reline(self):
 #		p1=[1,1]
@@ -378,33 +540,33 @@ class MainApplication(tk.Frame):
 		print(len(self.kp_catalog))
 		for i in range(len(self.kp_catalog)):
 			cv2.line(self.img, self.kp_catalog[i], self.kp_img[i], (255,255,255), thickness=1)
-		
 
 	def map_catalog(self):
 		simbad = Simbad()
 		simbad.add_votable_fields('flux(V)')
 		hoshi = simbad.query_criteria('Vmag<5',otype='star')
+#		hoshi = simbad.query_criteria('Vmag<5',otype='*')
 		
-		LOCATION = EarthLocation(lon=139.3370196674786*u.deg, lat=36.41357867541122*u.deg, height=122*u.m)
-		utcoffset = 0*u.hour
-		tz = TimezoneInfo(9*u.hour) # 時間帯を決める。
-		basename = os.path.splitext(os.path.basename(self.filename))[0]
+#		LOCATION = EarthLocation(lon=139.3370196674786*u.deg, lat=36.41357867541122*u.deg, height=122*u.m)
+#		utcoffset = 0*u.hour
+#		tz = TimezoneInfo(9*u.hour) # 時間帯を決める。
+#		basename = os.path.splitext(os.path.basename(self.filename))[0]
 #		basename = "20231021023633"
 #		t_base=basename[10:]
 #		t_base=basename[5:]	#trim_
-		t_base=basename
-		print(t_base)
-		toki = datetime.datetime(int(t_base[:4]),int(t_base[4:6]),int(t_base[6:8]),int(t_base[8:10]),int(t_base[10:12]),int(t_base[12:]),tzinfo=tz)
-		OBSTIME = Time(toki)
-		OBSERVER = AltAz(location= LOCATION, obstime = OBSTIME)
+#		t_base=basename
+#		print(t_base)
+#		toki = datetime.datetime(int(t_base[:4]),int(t_base[4:6]),int(t_base[6:8]),int(t_base[8:10]),int(t_base[10:12]),int(t_base[12:]),tzinfo=tz)
+#		OBSTIME = Time(self.toki)
+		OBSERVER = AltAz(location= self.location, obstime = self.obstime)
 		
 		RA=hoshi['RA']
 		DEC=hoshi['DEC']
 		STAR_COORDINATES = SkyCoord(RA,DEC, unit=['hourangle','deg'])
 		STAR_ALTAZ       = STAR_COORDINATES.transform_to(OBSERVER)
 		self.seiza = STAR_ALTAZ.get_constellation()
-		z = (self.seiza[:,None]==np.unique(self.seiza)).argmax(1)
-		iro = np.stack([z/87,z%5/4,1-z%4/4],1)
+#		z = (self.seiza[:,None]==np.unique(self.seiza)).argmax(1)
+#		iro = np.stack([z/87,z%5/4,1-z%4/4],1)
 		self.flux_v = (6-hoshi['FLUX_V'])+3
 		self.flux_v=np.int32(self.flux_v)
 		
@@ -472,7 +634,7 @@ class MainApplication(tk.Frame):
 
 	def read_img(self):
 #		self.filename="20231111042000.jpg"	#test_img ok
-		self.filename="20231111040000.jpg"	#real ok
+#		self.filename="20231111040000.jpg"	#real ok
 #		self.filename="20231122050000.jpg"	#real ok
 #		self.filename="20231123010820.jpg"
 #		self.filename="/home/kunitofukuda/workspace/Meteor/Optical2Wave/20231021/trim_img/20231021023633.jpg"
@@ -785,7 +947,7 @@ class MainApplication(tk.Frame):
 		# マウス最近傍の星の座標を得る
 		x = event.x*2
 		y = event.y*2
-		if 0<=x and x<=self.img.shape[1] and 0<=y and y<=self.img.shape[0]:
+		if self.img_flag!=0 and 0<=x and x<=self.img.shape[1] and 0<=y and y<=self.img.shape[0]:
 			self.label1["text"] = str([x,y]) 
 			self.frame_rect(x, y)
 			self.canvas_set(x, y)
