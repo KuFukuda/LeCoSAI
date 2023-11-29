@@ -11,7 +11,8 @@ import cv2
 import numpy as np
 import datetime
 
-from PIL import Image, ImageDraw, ImageFont, ImageTk
+#from PIL import Image, ImageDraw, ImageFont, ImageTk
+from PIL import Image, ImageTk
 import tkinter as tk
 import tkinter.filedialog
 #import pandas as pd
@@ -42,23 +43,35 @@ class MainApplication(tk.Frame):
 		self.master.title("LeCoSAI")
 		self.master.geometry('1300x700')
 
+		self.init_para()
+		self.filename_mask=None
+#		#kp_index : [catalog_index,img_index]
+#		self.img_flag=0
+#		self.kp_index=[]
+#		self.flag=0
+#		self.specific_flag=0
+#		self.line=[]
+#		self.filename_mask=None
+
+		self.create_widget()
+#		self.center_angle()
+
+	def init_para(self):
 		#kp_index : [catalog_index,img_index]
 		self.img_flag=0
 		self.kp_index=[]
 		self.flag=0
 		self.specific_flag=0
 		self.line=[]
-		self.filename_mask=None
-
-		self.create_widget()
-#		self.center_angle()
 
 	def star_detect(self):
 		#グレースケール画像にする
 		img_gray = cv2.cvtColor(self.img, cv2.COLOR_RGB2GRAY)
 		#明るさに閾値を設ける(ここでは適当に200)
-		threshold=120
-		ret, new = cv2.threshold(img_gray, threshold, 255, cv2.THRESH_BINARY)
+#		self.threshold_view["text"] =str(self.var_scale.get())
+		#self.threshold=120
+		self.threshold=self.var_scale.get()
+		ret, new = cv2.threshold(img_gray, self.threshold, 255, cv2.THRESH_BINARY)
 		#画像は黒背景に白点になっているため、白点の輪郭を検出
 		contours, hierarchy = cv2.findContours(new, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 		#各輪郭について、重心を求めて配列に入れる
@@ -73,6 +86,8 @@ class MainApplication(tk.Frame):
 		        stars.append(cnt[0][0])
 		self.stars_img=np.array(stars,dtype='int32') 
 		print(self.stars_img.shape)
+
+		self.stars_number["text"] = str(self.stars_img.shape[0]) 
 	#	return stars
 
 #	def center_angle(self):
@@ -86,24 +101,55 @@ class MainApplication(tk.Frame):
 		h=1080
 		w=1920
 		self.canvas1 = tk.Canvas(self.master, width=w, height=h)
-#		self.canvas1.pack()
 		self.canvas1.place(x=0, y=0)
 		_slength=200
 		self.canvas2 = tk.Canvas(self.master, width=_slength, height=_slength)
-#		self.canvas2.pack()
 		self.canvas2.place(x=1000, y=10)
 		self.canvas2.create_line(_slength/2, 0,_slength/2, _slength,tag="line1")
 		self.canvas2.create_line(0, _slength/2,_slength, _slength/2,tag="line2")
 
-		self.label1 = tk.Label(self.master, bg="white", width=10, height=3)
-		self.label1.place(x=100, y=600)
-		self.label2 = tk.Label(self.master, bg="green", width=10, height=3)
-		self.label2.place(x=400, y=600)
-		self.label3 = tk.Label(self.master, bg="red", width=10, height=3)
-		self.label3.place(x=550, y=600)
-		self.label4 = tk.Label(self.master, bg="white", width=10, height=3)
-		self.label4.place(x=200, y=600)
+		#マウスの位置
+		self.mause_posi = tk.Label(self.master, width=10)
+		self.mause_posi.place(x=100, y=600)
+#		self.label2 = tk.Label(self.master, bg="green", width=10, height=3)
+#		self.label2.place(x=400, y=600)
+#		self.label3 = tk.Label(self.master, bg="red", width=10, height=3)
+#		self.label3.place(x=550, y=600)
 
+		#星に関する情報
+		self.Location = tk.Label(text='Star',font=("normal","13","bold"))
+		self.Location.place(x=200, y=550, anchor=tk.NW)
+		#画像から抽出された星の数
+		self.label3 = tk.Label(text='Image')
+		self.label3.place(x=250, y=570, anchor=tk.NW)
+		self.stars_number = tk.Label(self.master, width=5)
+		self.stars_number.place(x=250, y=600)
+		#カタログから抽出された星の数
+		self.label4 = tk.Label(text='Catalog')
+		self.label4.place(x=250, y=640, anchor=tk.NW)
+		self.catalog_number = tk.Label(self.master, width=5)
+		self.catalog_number.place(x=250, y=660)
+		#対応付けられた星の数
+		self.label2 = tk.Label(text='Map')
+		self.label2.place(x=350, y=600, anchor=tk.NW)
+		self.check_stars = tk.Label(self.master, width=5)
+		self.check_stars.place(x=350, y=630)
+		#画像から抽出する星の閾値を設定するスライドバー
+		self.label_scale1 = tk.Label(text='Image')
+		self.label_scale1.place(x=530, y=570, anchor=tk.NW)
+		self.var_scale = tk.IntVar()
+		self.star_threshold = tk.Scale(self.master, 
+										from_=100, to=250, variable=self.var_scale, 
+										command=self.threshold_view,orient=tk.HORIZONTAL)
+		self.star_threshold.place(x=600, y=550)
+		#カタログから抽出する星の閾値を設定するスライドバー
+		self.label_scale2 = tk.Label(text='Catalog')
+		self.label_scale2.place(x=530, y=620, anchor=tk.NW)
+		self.var_scale_catalog = tk.IntVar()
+		self.catalog_threshold = tk.Scale(self.master, 
+										from_=3, to=9, variable=self.var_scale_catalog, 
+										command=self.catalog_threshold_view,orient=tk.HORIZONTAL)
+		self.catalog_threshold.place(x=600, y=600)
 
 		#画像の選択
 		self.entry_box_img = tk.Entry(width=20,state="readonly")
@@ -118,35 +164,46 @@ class MainApplication(tk.Frame):
 		self.button_mask.place(x=1200,y=262)
 
 		#日時入力
+		x_posi=1000
 		y_posi=310
 		self.date_y = tk.Label(text='Date:')
-		self.date_y.place(x=1000, y=y_posi, anchor=tk.NW)
+		self.date_y.place(x=x_posi, y=y_posi, anchor=tk.NW)
 
 		self.entry_box_y = tk.Entry(width=4)
-		self.entry_box_y.place(x=1040, y=y_posi)
+		x_posi+=40
+		self.entry_box_y.place(x=x_posi, y=y_posi)
 		self.date_y = tk.Label(text='/')
-		self.date_y.place(x=1075, y=y_posi, anchor=tk.NW)
+		x_posi+=40
+		self.date_y.place(x=x_posi, y=y_posi, anchor=tk.NW)
 
 		self.entry_box_mo = tk.Entry(width=3)
-		self.entry_box_mo.place(x=1085, y=y_posi)
+		x_posi+=10
+		self.entry_box_mo.place(x=x_posi, y=y_posi)
 		self.date_mo = tk.Label(text='/')
-		self.date_mo.place(x=1110, y=y_posi, anchor=tk.NW)
+		x_posi+=35
+		self.date_mo.place(x=x_posi, y=y_posi, anchor=tk.NW)
 
 		self.entry_box_day = tk.Entry(width=3)
-		self.entry_box_day.place(x=1120, y=y_posi)
+		x_posi+=10
+		self.entry_box_day.place(x=x_posi, y=y_posi)
 
 		self.entry_box_h = tk.Entry(width=3)
-		self.entry_box_h.place(x=1154, y=y_posi)
+		x_posi+=40
+		self.entry_box_h.place(x=x_posi, y=y_posi)
 		self.date_h = tk.Label(text=':')
-		self.date_h.place(x=1180, y=y_posi, anchor=tk.NW)
+		x_posi+=26
+		self.date_h.place(x=x_posi, y=y_posi, anchor=tk.NW)
 
 		self.entry_box_min = tk.Entry(width=3)
-		self.entry_box_min.place(x=1187, y=y_posi)
+		x_posi+=10
+		self.entry_box_min.place(x=x_posi, y=y_posi)
 		self.date_min = tk.Label(text=':')
-		self.date_min.place(x=1213, y=y_posi, anchor=tk.NW)
+		x_posi+=26
+		self.date_min.place(x=x_posi, y=y_posi, anchor=tk.NW)
 
 		self.entry_box_sec = tk.Entry(width=3)
-		self.entry_box_sec.place(x=1220, y=y_posi)
+		x_posi+=10
+		self.entry_box_sec.place(x=x_posi, y=y_posi)
 
 		#場所の入力
 		y_posi=350
@@ -220,8 +277,37 @@ class MainApplication(tk.Frame):
 
 #		font = tk.font.Font(family='Arial', size=16, weight='bold')
 #		image_title = tk.Label(text='=>', bg = "white", font=font)
-		image_title = tk.Label(text='=>')
-		image_title.place(x=500, y=610, anchor=tk.NW)
+#		image_title = tk.Label(text='=>')
+#		image_title.place(x=500, y=610, anchor=tk.NW)
+
+	def catalog_threshold_view(self,event=None):
+		print("catalog_threshold_view")
+		self.read_img()
+#画像から星を抽出
+		self.star_detect()
+		color_s=(0,0,255)
+		for s_point in self.stars_img:
+			cv2.drawMarker(self.img, s_point, color_s, markerType=cv2.MARKER_SQUARE, thickness=1, line_type=cv2.LINE_8)
+		self.img_stars=self.img.copy()	
+		if self.specific_flag==1:
+			self.map_catalog()
+			self.draw_stars_d()
+		self.canvas1.delete("img")
+		self.disp_img()
+
+	def threshold_view(self,event=None):
+		self.read_img()
+#画像から星を抽出
+		self.star_detect()
+		color_s=(0,0,255)
+		for s_point in self.stars_img:
+			cv2.drawMarker(self.img, s_point, color_s, markerType=cv2.MARKER_SQUARE, thickness=1, line_type=cv2.LINE_8)
+		self.img_stars=self.img.copy()	
+		if self.specific_flag==1:
+#			self.map_catalog()
+			self.draw_stars_d()
+		self.canvas1.delete("img")
+		self.disp_img()
 
 	def CalibSave(self):
 		filename = tk.filedialog.asksaveasfilename(
@@ -298,6 +384,7 @@ class MainApplication(tk.Frame):
 		self.disp_img()
 
 	def Reset(self):
+		self.init_para()
 		self.canvas1.delete("img")
 		self.stars_catalog=self.stars_catalog_original.copy()
 		self.draw_stars_d()
@@ -359,6 +446,7 @@ class MainApplication(tk.Frame):
 		self.disp_img()
 
 	def openfile_img(self):
+		self.init_para()
 		self.entry_box_img.configure(state="normal") #Entry_boxを書き込み可に設定
 		idir="./" #初期フォルダを指定
 		filetype=[("JPG",".jpg")]
@@ -537,6 +625,7 @@ class MainApplication(tk.Frame):
 #					self.check_kp()
 					self.check_kp_index()
 #				cv2.line(self.img, self.kp_catalog[-1], self.kp_img[-1], (255,255,255), thickness=1)
+					self.check_stars["text"]=str(len(self.kp_index))
 		self.canvas1.delete("img")
 #		self.Reline()
 #		self.calc_center()
@@ -562,16 +651,6 @@ class MainApplication(tk.Frame):
 		hoshi = simbad.query_criteria('Vmag<5',otype='star')
 #		hoshi = simbad.query_criteria('Vmag<5',otype='*')
 		
-#		utcoffset = 0*u.hour
-#		tz = TimezoneInfo(9*u.hour) # 時間帯を決める。
-#		basename = os.path.splitext(os.path.basename(self.filename))[0]
-#		basename = "20231021023633"
-#		t_base=basename[10:]
-#		t_base=basename[5:]	#trim_
-#		t_base=basename
-#		print(t_base)
-#		toki = datetime.datetime(int(t_base[:4]),int(t_base[4:6]),int(t_base[6:8]),int(t_base[8:10]),int(t_base[10:12]),int(t_base[12:]),tzinfo=tz)
-#		OBSTIME = Time(self.toki)
 		OBSERVER = AltAz(location= self.location, obstime = self.obstime)
 		
 		RA=hoshi['RA']
@@ -579,10 +658,12 @@ class MainApplication(tk.Frame):
 		STAR_COORDINATES = SkyCoord(RA,DEC, unit=['hourangle','deg'])
 		STAR_ALTAZ       = STAR_COORDINATES.transform_to(OBSERVER)
 		self.seiza = STAR_ALTAZ.get_constellation()
-#		z = (self.seiza[:,None]==np.unique(self.seiza)).argmax(1)
-#		iro = np.stack([z/87,z%5/4,1-z%4/4],1)
-		self.flux_v = (6-hoshi['FLUX_V'])+3
+#		self.flux_v=(6-hoshi[hoshi['FLUX_V']<threshold])+2
+		self.flux_v = (6-hoshi['FLUX_V'])+2
 		self.flux_v=np.int32(self.flux_v)
+		print(self.flux_v.max())
+		print(self.flux_v.min())
+#		print(self.flux_v.shape)
 		
 		self.AZ  = STAR_ALTAZ.az.deg
 		self.ALT = STAR_ALTAZ.alt.deg
@@ -618,12 +699,29 @@ class MainApplication(tk.Frame):
 
 #		st = [s for s in self.stars_catalog if self.left-10<s[0] and s[0]<self.right+10]
 #		self.stars_catalog = [s for s in st if self.bottom-10<s[1] and s[1]<self.top+10]
-		st = [s for s in self.stars_catalog if -200<s[0] and s[0]<w+200]
-		self.stars_catalog = [s for s in st if -200<s[1] and s[1]<h+200]
+		print(self.stars_catalog.shape)
+#		st = [s for s in self.stars_catalog if -200<s[0] and s[0]<w+200]
+#		self.stars_catalog = [s for s in st if -200<s[1] and s[1]<h+200]
+		stars_catalog=[]
+		flux_v=[]
+		threshold=self.var_scale_catalog.get()
+		for s,f in zip(self.stars_catalog,self.flux_v):
+			if -200<s[0] and s[0]<w+200 and -200<s[1] and s[1]<h+200 and threshold<=f:
+				stars_catalog.append(s)
+				flux_v.append(f)
+#		self.stars_catalog = [s for s in st if -200<s[1] and s[1]<h+200]
 		
-		self.stars_catalog=np.array(self.stars_catalog,dtype='int32')
+		self.flux_v=np.int32(flux_v)
+#		self.stars_catalog=np.array(self.stars_catalog,dtype='int32')
+		self.stars_catalog=np.int32(stars_catalog)
 		self.stars_catalog_original=self.stars_catalog
+		print(self.flux_v.shape)
+		print(self.stars_catalog.shape)
 #		print(self.stars_catalog.shape)
+##################################
+		self.catalog_number["text"]=str(self.flux_v.shape[0])
+#		self.check_stars = tk.Label(self.master, width=5)
+#		self.check_stars.place(x=350, y=610)
 		
 	def draw_stars_d(self):
 		self.img=self.img_stars.copy()
@@ -853,14 +951,13 @@ class MainApplication(tk.Frame):
 		if sd!=0:
 			if self.flag==0:
 				self.kp_index_catalog=sd
-				self.label2["text"]=str(self.stars_catalog[sd])
 				self.flag=1
 			else:
 				self.kp_index.append([self.kp_index_catalog,sd])
-				self.label3["text"]=str(self.stars_img[sd])
 				if len(self.kp_index)>2:
 					self.check_kp_index()
-
+				
+				self.check_stars["text"]=str(len(self.kp_index))
 				self.make_kp_list()
 				self.drawline()
 				self.disp_img()
@@ -945,7 +1042,7 @@ class MainApplication(tk.Frame):
 		x = event.x*2
 		y = event.y*2
 		if self.img_flag!=0 and 0<=x and x<=self.img.shape[1] and 0<=y and y<=self.img.shape[0]:
-			self.label1["text"] = str([x,y]) 
+			self.mause_posi["text"] = str([x,y]) 
 			self.frame_rect(x, y)
 			self.canvas_set(x, y)
 
