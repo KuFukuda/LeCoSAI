@@ -134,22 +134,24 @@ class MainApplication(tk.Frame):
 		self.label2.place(x=350, y=600, anchor=tk.NW)
 		self.check_stars = tk.Label(self.master, width=5)
 		self.check_stars.place(x=350, y=630)
+
 		#画像から抽出する星の閾値を設定するスライドバー
+		x_posi=430
 		self.label_scale1 = tk.Label(text='Image')
-		self.label_scale1.place(x=530, y=570, anchor=tk.NW)
+		self.label_scale1.place(x=x_posi, y=570, anchor=tk.NW)
 		self.var_scale = tk.IntVar()
 		self.star_threshold = tk.Scale(self.master, 
 										from_=100, to=250, variable=self.var_scale, 
 										command=self.threshold_view,orient=tk.HORIZONTAL)
-		self.star_threshold.place(x=600, y=550)
+		self.star_threshold.place(x=x_posi+70, y=550)
 		#カタログから抽出する星の閾値を設定するスライドバー
 		self.label_scale2 = tk.Label(text='Catalog')
-		self.label_scale2.place(x=530, y=620, anchor=tk.NW)
+		self.label_scale2.place(x=x_posi, y=620, anchor=tk.NW)
 		self.var_scale_catalog = tk.IntVar()
 		self.catalog_threshold = tk.Scale(self.master, 
 										from_=3, to=9, variable=self.var_scale_catalog, 
 										command=self.catalog_threshold_view,orient=tk.HORIZONTAL)
-		self.catalog_threshold.place(x=600, y=600)
+		self.catalog_threshold.place(x=x_posi+70, y=600)
 
 		#画像の選択
 		self.entry_box_img = tk.Entry(width=20,state="readonly")
@@ -225,45 +227,62 @@ class MainApplication(tk.Frame):
 		self.entry_box_H = tk.Entry(width=10)
 		self.entry_box_H.place(x=1080, y=y_posi+90)
 
+		#方位角と仰角の設定
+		self.angle = tk.Label(text='Angle[deg]:')
+		self.angle.place(x=1000,y=y_posi+135,anchor=tk.NW)
+		x_posi=1080
+
+		self.entry_box_top = tk.Entry(width=5)
+		self.entry_box_top.place(x=x_posi+50, y=y_posi+125)
+
+		self.entry_box_left = tk.Entry(width=5)
+		self.entry_box_left.place(x=x_posi, y=y_posi+135)
+
+		self.entry_box_right = tk.Entry(width=5)
+		self.entry_box_right.place(x=x_posi+100, y=y_posi+135)
+
+		self.entry_box_bottom = tk.Entry(width=5)
+		self.entry_box_bottom.place(x=x_posi+50, y=y_posi+145)
+
 		self.button_posi=tk.Button(text="Input",command=self.DateLocInput,width=7)
-		self.button_posi.place(x=1200,y=y_posi+35)
+		self.button_posi.place(x=1050,y=y_posi+200)
 
 		self.button_saveloc=tk.Button(text="Save",command=self.LocationSave,width=7)
-		self.button_saveloc.place(x=1200,y=y_posi+75)
+		self.button_saveloc.place(x=1150,y=y_posi+200)
 
 		#場所情報の読み込み
 		self.entry_box_loc = tk.Entry(width=20,state="readonly")
-		self.entry_box_loc.place(x=1000, y=y_posi+120)
+		self.entry_box_loc.place(x=1000, y=y_posi+280)
 		self.button_loc=tk.Button(text="Load",command=self.openfile_loc,width=7)
-		self.button_loc.place(x=1200,y=y_posi+112)
+		self.button_loc.place(x=1200,y=y_posi+272)
 
 
 		#レンズ歪みの計算
-		y_posi=500
+		y_posi=550
+		x_posi=650
 		self.Calib = tk.Label(text='Calibration',font=("normal","13","bold"))
-		self.Calib.place(x=1000, y=y_posi, anchor=tk.NW)
+		self.Calib.place(x=x_posi, y=y_posi, anchor=tk.NW)
 
 		self.button = tk.Button(self.master, text="Calc",command=self.remake_img,width=7)
-		self.button.place(x=1000, y=y_posi+30)
+		self.button.place(x=x_posi, y=y_posi+30)
 
 		self.button_mstar=tk.Button(text="Move",command=self.stars_move,width=7)
-		self.button_mstar.place(x=1100,y=y_posi+30)
+		self.button_mstar.place(x=x_posi+100,y=y_posi+30)
 
 		self.button = tk.Button(self.master, text="Auto",command=self.auto,width=7)
-		self.button.place(x=1200, y=y_posi+30)
+		self.button.place(x=x_posi+200, y=y_posi+30)
 
 
 		self.entry_box_calib = tk.Entry(width=20,state="readonly") 
-		self.entry_box_calib.place(x=1000, y=y_posi+70)
+		self.entry_box_calib.place(x=x_posi, y=y_posi+70)
 		self.button_calib=tk.Button(text="Load",command=self.openfile,width=7)
-		self.button_calib.place(x=1200,y=y_posi+70)
+		self.button_calib.place(x=x_posi+200,y=y_posi+70)
 
 		self.button_save=tk.Button(text="Save",command=self.CalibSave,width=7)
-		self.button_save.place(x=1000,y=y_posi+110)
+		self.button_save.place(x=x_posi,y=y_posi+110)
 
 		self.button_save=tk.Button(text="Reset",command=self.Reset,width=7)
-		self.button_save.place(x=1100,y=y_posi+110)
-
+		self.button_save.place(x=x_posi+100,y=y_posi+110)
 
 #		self.disp_img()
 
@@ -349,6 +368,7 @@ class MainApplication(tk.Frame):
 		)
 		print(filename)
 #		filename="Location.csv"
+#		specific_data=[self.plon,self.plat,self.pH,self.top,self.left,self.right,self.bottom]
 		specific_data=[self.plon,self.plat,self.pH]
 		np.savetxt(filename, specific_data, delimiter=',', fmt="%0.5e")
 		print("SaveLocation")
@@ -681,10 +701,14 @@ class MainApplication(tk.Frame):
 		#left=center_x-width/2
 		#right=center_x+width/2
 		#ATOMCAM2 水平 102°、垂直 54.9°
-		self.left=125
-		self.right=270
-		self.top=68
-		self.bottom=12
+		self.left=int(self.entry_box_left.get())
+		self.right=int(self.entry_box_right.get())
+		self.top=int(self.entry_box_top.get())
+		self.bottom=int(self.entry_box_bottom.get())
+#		self.left=125
+#		self.right=270
+#		self.top=68
+#		self.bottom=12
 
 		h,w = self.img.shape[:2]
 #		print(h,w)
