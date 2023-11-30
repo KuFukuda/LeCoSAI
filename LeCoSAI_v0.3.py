@@ -57,9 +57,12 @@ class MainApplication(tk.Frame):
 #		self.center_angle()
 
 	def init_para(self):
-		#kp_index : [catalog_index,img_index]
 		self.img_flag=0
+		#kp_index : [catalog_index,img_index]
 		self.kp_index=[]
+		self.kp_catalog=[]
+		self.kp_catalog_original=[]
+		self.kp_img=[]
 		self.flag=0
 		self.specific_flag=0
 		self.line=[]
@@ -256,7 +259,6 @@ class MainApplication(tk.Frame):
 		self.button_loc=tk.Button(text="Load",command=self.openfile_loc,width=7)
 		self.button_loc.place(x=1200,y=y_posi+272)
 
-
 		#レンズ歪みの計算
 		y_posi=550
 		x_posi=650
@@ -354,10 +356,26 @@ class MainApplication(tk.Frame):
 		self.plon=np.float32(content[0])
 		self.plat=np.float32(content[1])
 		self.pH=np.float32(content[2])
+		self.top=np.float32(content[3])
+		self.left=np.float32(content[4])
+		self.right=np.float32(content[5])
+		self.bottom=np.float32(content[6])
 
-		self.entry_box_lon.insert(tk.END,str(self.plon[0]))
-		self.entry_box_lat.insert(tk.END,str(self.plat[0]))
-		self.entry_box_H.insert(tk.END,str(self.pH[0]))
+		self.entry_box_lon.delete(0,tk.END)
+		self.entry_box_lat.delete(0,tk.END)
+		self.entry_box_H.delete(0,tk.END)
+		self.entry_box_top.delete(0,tk.END)
+		self.entry_box_left.delete(0,tk.END)
+		self.entry_box_right.delete(0,tk.END)
+		self.entry_box_bottom.delete(0,tk.END)
+
+		self.entry_box_lon.insert(0,str(self.plon[0]))
+		self.entry_box_lat.insert(0,str(self.plat[0]))
+		self.entry_box_H.insert(0,str(self.pH[0]))
+		self.entry_box_top.insert(0,str(self.top[0]))
+		self.entry_box_left.insert(0,str(self.left[0]))
+		self.entry_box_right.insert(0,str(self.right[0]))
+		self.entry_box_bottom.insert(0,str(self.bottom[0]))
 
 		self.DateLocInput()
 
@@ -368,8 +386,8 @@ class MainApplication(tk.Frame):
 		)
 		print(filename)
 #		filename="Location.csv"
-#		specific_data=[self.plon,self.plat,self.pH,self.top,self.left,self.right,self.bottom]
-		specific_data=[self.plon,self.plat,self.pH]
+		specific_data=[self.plon,self.plat,self.pH,self.top,self.left,self.right,self.bottom]
+#		specific_data=[self.plon,self.plat,self.pH]
 		np.savetxt(filename, specific_data, delimiter=',', fmt="%0.5e")
 		print("SaveLocation")
 
@@ -397,6 +415,15 @@ class MainApplication(tk.Frame):
 		self.location = EarthLocation(lon=self.plon*u.deg, lat=self.plat*u.deg, height=self.pH*u.m)
 		print("PosiInput")
 		self.specific_flag=1
+
+		self.top=self.entry_box_top.get()
+		self.top=np.float32(self.top)
+		self.left=self.entry_box_left.get()
+		self.left=np.float32(self.left)
+		self.right=self.entry_box_right.get()
+		self.right=np.float32(self.right)
+		self.bottom=self.entry_box_bottom.get()
+		self.bottom=np.float32(self.bottom)
 
 		self.canvas1.delete("img")
 		self.map_catalog()
@@ -519,22 +546,42 @@ class MainApplication(tk.Frame):
 	def key_event(self,event):
 		self.key=event.keysym
 #		print(self.key)
+		#ピクセルから角度への変換
+		wP2A=(self.right-self.left)/self.img.shape[1]
+		hP2A=(self.top-self.bottom)/self.img.shape[0]
 		if self.key == "j":
-			self.stars_catalog[:,0] +=-5
-#			self.left += 1
-#			self.right += 1
+			self.stars_catalog[:,0] -=+5
+			self.left += +5*hP2A
+			self.right += +5*hP2A
+			self.entry_box_right.delete(0,tk.END)
+			self.entry_box_right.insert(tk.END,self.right)
+			self.entry_box_left.delete(0,tk.END)
+			self.entry_box_left.insert(tk.END,self.left)
 		elif self.key == "l":
-			self.stars_catalog[:,0] -=-5
-#			self.left -= 1
-#			self.right -= 1
+			self.stars_catalog[:,0] +=+5
+			self.left += -5*hP2A
+			self.right += -5*hP2A
+			self.entry_box_right.delete(0,tk.END)
+			self.entry_box_right.insert(tk.END,self.right)
+			self.entry_box_left.delete(0,tk.END)
+			self.entry_box_left.insert(tk.END,self.left)
 		elif self.key == "i":
 			self.stars_catalog[:,1] +=-5
-#			self.top += 1
-#			self.bottom += 1
+			self.top += -5*hP2A
+			self.bottom += -5*hP2A
+			self.entry_box_top.delete(0,tk.END)
+			self.entry_box_top.insert(tk.END,self.top)
+			self.entry_box_bottom.delete(0,tk.END)
+			self.entry_box_bottom.insert(tk.END,self.bottom)
 		elif self.key == "k":
-			self.stars_catalog[:,1] -=-5
-#			self.top -= 1
-#			self.bottom -= 1
+			self.stars_catalog[:,1] +=+5
+			self.top += +5*hP2A
+			self.bottom += +5*hP2A
+			self.entry_box_top.delete(0,tk.END)
+			self.entry_box_top.insert(tk.END,self.top)
+			self.entry_box_bottom.delete(0,tk.END)
+			self.entry_box_bottom.insert(tk.END,self.bottom)
+
 #		self.center_angle()
 #		self.remake_img()
 #		self.read_img()
@@ -701,10 +748,10 @@ class MainApplication(tk.Frame):
 		#left=center_x-width/2
 		#right=center_x+width/2
 		#ATOMCAM2 水平 102°、垂直 54.9°
-		self.left=int(self.entry_box_left.get())
-		self.right=int(self.entry_box_right.get())
-		self.top=int(self.entry_box_top.get())
-		self.bottom=int(self.entry_box_bottom.get())
+#		self.left=int(self.entry_box_left.get())
+#		self.right=int(self.entry_box_right.get())
+#		self.top=int(self.entry_box_top.get())
+#		self.bottom=int(self.entry_box_bottom.get())
 #		self.left=125
 #		self.right=270
 #		self.top=68
@@ -715,8 +762,11 @@ class MainApplication(tk.Frame):
 		ws=w/(self.right-self.left)
 		hs=h/(self.top-self.bottom)
 
+		#角度からピクセルへの変換
 		self.stars_catalog[:,0]=(self.stars_catalog[:,0]-self.left)*ws
-		self.stars_catalog[:,1]=h-(self.stars_catalog[:,1]-self.bottom)*hs
+		self.stars_catalog[:,1]=(self.top-self.stars_catalog[:,1])*hs
+#		self.stars_catalog[:,0]=(self.stars_catalog[:,0]-self.left)*ws
+#		self.stars_catalog[:,1]=h-(self.stars_catalog[:,1]-self.bottom)*hs
 		
 #		self.stars_catalog=np.array(self.stars_catalog,dtype='int32')
 #		print(self.stars_catalog.shape)
