@@ -44,7 +44,7 @@ class MainApplication(tk.Frame):
 		self.master.geometry('1300x700')
 
 		self.init_para()
-		self.filename_mask=None
+		self.filename_mask=""
 #		#kp_index : [catalog_index,img_index]
 #		self.img_flag=0
 #		self.kp_index=[]
@@ -127,16 +127,19 @@ class MainApplication(tk.Frame):
 		self.label3.place(x=250, y=570, anchor=tk.NW)
 		self.stars_number = tk.Label(self.master, width=5)
 		self.stars_number.place(x=250, y=600)
+		self.stars_number["text"]=str(0)
 		#カタログから抽出された星の数
 		self.label4 = tk.Label(text='Catalog')
 		self.label4.place(x=250, y=640, anchor=tk.NW)
 		self.catalog_number = tk.Label(self.master, width=5)
 		self.catalog_number.place(x=250, y=660)
+		self.catalog_number["text"]=str(0)
 		#対応付けられた星の数
 		self.label2 = tk.Label(text='Map')
 		self.label2.place(x=350, y=600, anchor=tk.NW)
 		self.check_stars = tk.Label(self.master, width=5)
 		self.check_stars.place(x=350, y=630)
+		self.check_stars["text"]=str(0)
 
 		#画像から抽出する星の閾値を設定するスライドバー
 		x_posi=430
@@ -317,8 +320,8 @@ class MainApplication(tk.Frame):
 		self.disp_img()
 
 	def threshold_view(self,event=None):
+		#画像から星を抽出
 		self.read_img()
-#画像から星を抽出
 		self.star_detect()
 		color_s=(0,0,255)
 		for s_point in self.stars_img:
@@ -336,10 +339,16 @@ class MainApplication(tk.Frame):
 		initialdir = "./", # 自分自身のディレクトリ
 		)
 		print(filename)
-		specific_data=[self.plon,self.plat,self.pH]
-		np.savetxt(filename, specific_data, delimiter=',', fmt="%0.5e")
+		save_dist=np.float32(self.dist).reshape(1,-1)
+		save_rvecs=np.float32(self.rvecs).reshape(1,-1)
+		save_tvecs=np.float32(self.tvecs).reshape(1,-1)
+		np.savetxt(filename, self.mtx, delimiter=',', fmt="%0.5e")
+		with open(filename, "a") as f:
+			np.savetxt(f, save_dist, delimiter=',', fmt="%0.5e")
+			np.savetxt(f, save_rvecs, delimiter=',', fmt="%0.5e")
+			np.savetxt(f, save_tvecs, delimiter=',', fmt="%0.5e")
 		print("SaveClib")
-		self.save_para()
+		self.undistortion()
 
 	def openfile_loc(self):
 		self.entry_box_loc.configure(state="normal") #Entry_boxを書き込み可に設定
@@ -437,6 +446,7 @@ class MainApplication(tk.Frame):
 		self.draw_stars_d()
 #		self.make_kp_list()
 		self.drawline()
+		self.check_stars["text"]=str(len(self.kp_index))
 		self.disp_img()
 
 	def stars_move(self):
@@ -470,27 +480,22 @@ class MainApplication(tk.Frame):
 		self.entry_box_mask.configure(state="readonly") #読み込み専用に戻す
 		print(self.filename_mask)
 
-		# 画像を読み込み
-#		self.img_flag=1
-	#画像のマスク
-#		mask = cv2.imread("mask_original.png")
-#		mask = cv2.bitwise_not(mask)
-#		self.img = cv2.bitwise_and(self.img, mask)
-		self.read_img()
-#画像から星を抽出
-		self.star_detect()
-		color_s=(0,0,255)
-		for s_point in self.stars_img:
-			cv2.drawMarker(self.img, s_point, color_s, markerType=cv2.MARKER_SQUARE, thickness=1, line_type=cv2.LINE_8)
-#		draw_stars(self.img,self.stars_img,color_img,cv2.MARKER_SQUARE,msizes)
-#		self.img_stars=self.img.copy()
-		#self.img_stars：抽出した星が書き込まれている
-		self.img_stars=self.img.copy()	
-		if self.specific_flag==1:
-			self.map_catalog()
-			self.draw_stars_d()
-		self.canvas1.delete("img")
-		self.disp_img()
+		if self.filename_mask!="":
+			print("no mask B")
+
+			# 画像を読み込み
+			self.read_img()
+			#画像から星を抽出
+			self.star_detect()
+			color_s=(0,0,255)
+			for s_point in self.stars_img:
+				cv2.drawMarker(self.img, s_point, color_s, markerType=cv2.MARKER_SQUARE, thickness=1, line_type=cv2.LINE_8)
+			self.img_stars=self.img.copy()	
+			if self.specific_flag==1:
+				self.map_catalog()
+				self.draw_stars_d()
+			self.canvas1.delete("img")
+			self.disp_img()
 
 	def openfile_img(self):
 		self.init_para()
@@ -826,7 +831,7 @@ class MainApplication(tk.Frame):
 #		self.filename="20231021035238.jpg"
 		self.img = cv2.imread(self.filename)
 #	#画像のマスク
-		if self.filename_mask!=None:
+		if self.filename_mask!="":
 #		mask = cv2.imread("mask_original.png")
 			mask = cv2.imread(self.filename_mask)
 			mask = cv2.bitwise_not(mask)
@@ -914,39 +919,47 @@ class MainApplication(tk.Frame):
 #		self.save_para()
 #		self.undistortion()
 
-	def save_para(self):
-		save_dist=np.float32(self.dist).reshape(1,-1)
-		save_rvecs=np.float32(self.rvecs).reshape(1,-1)
-		save_tvecs=np.float32(self.tvecs).reshape(1,-1)
-		filename_calib="calibcamera.csv"
-		np.savetxt(filename_calib, self.mtx, delimiter=',', fmt="%0.5e")
-		with open(filename_calib, "a") as f:
-			np.savetxt(f, save_dist, delimiter=',', fmt="%0.5e")
-			np.savetxt(f, save_rvecs, delimiter=',', fmt="%0.5e")
-			np.savetxt(f, save_tvecs, delimiter=',', fmt="%0.5e")
-#		k_filename="K_calibcamera.csv"
-#		d_filename="D_calibcamera.csv"
-#		np.savetxt(k_filename, self.mtx, delimiter=',', fmt="%0.5e")
-#		np.savetxt(d_filename, self.dist, delimiter=',', fmt="%0.5e")
+#	def save_para(self):
+#		save_dist=np.float32(self.dist).reshape(1,-1)
+#		save_rvecs=np.float32(self.rvecs).reshape(1,-1)
+#		save_tvecs=np.float32(self.tvecs).reshape(1,-1)
+#		filename_calib="calibcamera.csv"
+#		np.savetxt(filename_calib, self.mtx, delimiter=',', fmt="%0.5e")
+#		with open(filename_calib, "a") as f:
+#			np.savetxt(f, save_dist, delimiter=',', fmt="%0.5e")
+#			np.savetxt(f, save_rvecs, delimiter=',', fmt="%0.5e")
+#			np.savetxt(f, save_tvecs, delimiter=',', fmt="%0.5e")
+##		k_filename="K_calibcamera.csv"
+##		d_filename="D_calibcamera.csv"
+##		np.savetxt(k_filename, self.mtx, delimiter=',', fmt="%0.5e")
+##		np.savetxt(d_filename, self.dist, delimiter=',', fmt="%0.5e")
 
 	def undistortion(self):
 		# Using the derived camera parameters to undistort the image
-		self.filename="20231111040000.jpg"
+		filename="20231111040000.jpg"
 #		for filepath in self.images:
-		img = cv2.imread(self.filename)
+		img = cv2.imread(filename)
 		h,w = img.shape[:2]
 #		img = cv2.resize(img, dsize=(int(w/2),int(h/2)))
 		# ROI:Region Of Interest(対象領域)
-		#newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
+		newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, (w,h), 1, (w,h))
+#		newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
 		#newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, (self.w,self.h), 0, (self.w,self.h))
-		newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, img.shape[:2], 0, img.shape[:2])
+		print(self.mtx,self.dist)
+		#newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, img.shape[:2], 0, img.shape[:2])
     
 		# Method 1 to undistort the image
+#		cv2.undistort(img, dst, self.mtx, self.dist, newcameramtx)
 		dst = cv2.undistort(img, self.mtx, self.dist, None, newcameramtx)
 		
 		#歪み補正した画像をimg_undistortフォルダへ保存
-		cv2.imwrite('undistort_' + self.filename, dst)
+		cv2.imwrite('undistort_' + filename, dst)
 #		cv2.imwrite('undistort_' + str(os.path.basename(filepath)), dst)
+
+		print(roi)
+#		x,y,w,h=roi
+#		dst=dst[y:y+h,x:w+w]
+#		cv2.imwrite('cut_undistort_' + filename, dst)
 		cv2.waitKey(0)
 		cv2.destroyAllWindows()
 
@@ -1115,6 +1128,7 @@ class MainApplication(tk.Frame):
 		# マウス最近傍の星の座標を得る
 		x = event.x*2
 		y = event.y*2
+#		print(self.img.shape)
 		if self.img_flag!=0 and 0<=x and x<=self.img.shape[1] and 0<=y and y<=self.img.shape[0]:
 			self.mause_posi["text"] = str([x,y]) 
 			self.frame_rect(x, y)
