@@ -67,6 +67,16 @@ class MainApplication(tk.Frame):
 		self.specific_flag=0
 		self.line=[]
 
+		#init
+		fx=1.14731e3
+		fy=1.14814e3
+		cx=9.68865e2	#pixel
+		cy=5.32106e2	#pixel
+		self.init_mtx = np.array([[fx, 0.0,cx], # カメラ行列
+						[0.0,fy, cy],
+						[0.0,0.0,1.0]])
+		self.init_dist = np.array([-3.84386e-01,2.00727e-01,7.27513e-04,3.32499e-04,-6.59210e-02])	#正式
+
 	def star_detect(self):
 		#グレースケール画像にする
 		img_gray = cv2.cvtColor(self.img, cv2.COLOR_RGB2GRAY)
@@ -451,7 +461,8 @@ class MainApplication(tk.Frame):
 
 	def stars_move(self):
 		#星を移動させる
-		self.calc_catalog_point()
+#		self.calc_catalog_point()
+		self.fish_calc_catalog_point()
 		self.draw_stars_d()
 		self.make_kp_list()
 		self.drawline()
@@ -543,10 +554,12 @@ class MainApplication(tk.Frame):
 #		print(self.read_mtx)
 		self.dist=np.float32(content[3])
 #		print(self.read_dist)
-		self.rvecs=np.float32(content[4])
+#		self.rvecs=np.float32(content[4])
 #		print(self.read_rvecs)
-		self.tvecs=np.float32(content[5])
+#		self.tvecs=np.float32(content[5])
 #		print(self.read_tvecs)
+		self.rvecs = np.zeros((3, 1))
+		self.tvecs = np.zeros((3, 1))
 
 	def key_event(self,event):
 		self.key=event.keysym
@@ -624,6 +637,46 @@ class MainApplication(tk.Frame):
 			self.line.append([a,b])
 #		print(self.line)
 
+	def undi_fish(self):
+		#補正画像の作製
+#		camera_mat = K
+#		dist_coef = d
+		k_new_param = 0.5
+		new_camera_mat = self.mtx.copy()
+		new_camera_mat[(0, 1), (0, 1)] = k_new_param * new_camera_mat[(0, 1),(0, 1)]
+		
+#		for filepath in images:
+		filepath=""
+		img = cv.imread(filepath)
+		print(filepath)
+		dst = cv.fisheye.undistortImage(img,camera_mat,self.dist,Knew=new_camera_mat)
+
+	def fish_calc_catalog_point(self):
+		stars_catalog=self.stars_catalog_original.copy()
+		#stars_catalog=self.stars_catalog_original.copy()
+		stars_catalog=np.insert(stars_catalog, 2, 0.0, axis=1)
+		stars_catalog_m=np.array([stars_catalog],dtype="float32")
+#		stars_catalog[:,0]=(stars_catalog[:,0]-self.mtx[0,2])/self.mtx[0,0]
+#		stars_catalog[:,1]=(stars_catalog[:,1]-self.mtx[1,2])/self.mtx[1,1]
+#		stars_catalog_m=np.zeros((stars_catalog.shape[0],3))
+#		stars_catalog_m[:,0]=(stars_catalog[:,0]-self.mtx[0,2])/self.mtx[0,0]
+#		stars_catalog_m[:,1]=(stars_catalog[:,1]-self.mtx[1,2])/self.mtx[1,1]
+#		stars_catalog_m=np.float32([stars_catalog_m])
+
+		# project 3D points to image plane
+#		self.rvecs = np.zeros((3, 1))
+#		self.tvecs = np.zeros((3, 1))
+#		print(self.rvecs)
+		print(stars_catalog_m.shape)
+		self.calc_catalog, jac = cv2.fisheye.projectPoints(stars_catalog_m, self.rvecs, self.tvecs, self.mtx, self.dist)
+#		self.calc_catalog=np.int32(self.calc_catalog).reshape(self.calc_catalog.shape[0],self.calc_catalog.shape[2])
+		self.stars_catalog=np.int32(self.calc_catalog).reshape(-1,2)
+#		self.calc_catalog=self.calc_catalog.reshape(self.calc_catalog.shape[0],self.calc_catalog.shape[2])
+		print(self.stars_catalog)
+#		print(self.calc_catalog.shape)
+#		print(self.calc_catalog[0])
+#		self.stars_catalog=self.calc_catalog
+
 	def calc_catalog_point(self):
 #		stars_catalog=self.stars_catalog.copy()
 		stars_catalog=self.stars_catalog_original.copy()
@@ -636,6 +689,7 @@ class MainApplication(tk.Frame):
 #		self.rvecs = np.zeros((3, 1))
 #		self.tvecs = np.zeros((3, 1))
 #		print(self.rvecs)
+#		print(stars_catalog)
 		self.calc_catalog, jac = cv2.projectPoints(stars_catalog, self.rvecs, self.tvecs, self.mtx, self.dist)
 #		self.calc_catalog, jac = cv2.projectPoints(stars_catalog, self.rvecs, self.tvecs, self.mtx, self.dist)
 #		imgpts, jac = cv2.projectPoints(self.stars_catalog, rvecs, self.tvecs, self.mtx, self.dist)
@@ -733,8 +787,8 @@ class MainApplication(tk.Frame):
 #		self.flux_v=(6-hoshi[hoshi['FLUX_V']<threshold])+2
 		self.flux_v = (6-hoshi['FLUX_V'])+2
 		self.flux_v=np.int32(self.flux_v)
-		print(self.flux_v.max())
-		print(self.flux_v.min())
+#		print(self.flux_v.max())
+#		print(self.flux_v.min())
 #		print(self.flux_v.shape)
 		
 		self.AZ  = STAR_ALTAZ.az.deg
@@ -838,16 +892,47 @@ class MainApplication(tk.Frame):
 			self.img = cv2.bitwise_and(self.img, mask)
 ##		cv2.imwrite('mask_result.jpg', img_AND)
 
+	def fish_camera(self):
+		gray = cv2.cvtColor(self.img, cv2.COLOR_RGB2GRAY)
+#		print(gray.shape[::-1])
+#		self.objps=np.insert(self.kp_catalog,2,0.0,axis=1)
+		self.objps=np.insert(self.kp_catalog_original,2,0.0,axis=1)
+		self.objps=np.array([[self.objps]],dtype="float32")
+#		self.objps=np.array(self.objps,dtype="float32")
+#		self.objps=np.float32(self.objps).reshape(-1,3)
+		print(self.objps.shape)
+#		self.mtx=np.insert(self.mtx,2,insert_m,axis=0)
+		imgpoints=self.kp_img
+		imgpoints=np.array([[imgpoints]],dtype="float32")
+#		imgpoints=np.array(imgpoints,dtype="float32")
+
+		self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+
+		calibration_flags = cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC + cv2.fisheye.CALIB_FIX_SKEW
+    
+#		init_K = np.zeros((3, 3))
+		init_K = np.float32([[1148.030453,0.0,968.5167184],
+					[0.0,1149.062407,533.0930511],
+					[0.0,0.0,1.0]])
+		init_d = np.float32([-0.046621833,-0.091361659,0.164567718,-0.125469129])
+		#init_d = np.zeros((4, 1))
+		init_rvecs = [np.zeros((1, 1, 3), dtype=np.float32)]
+		init_tvecs = [np.zeros((1, 1, 3), dtype=np.float32)]
+
+		# カメラ内部パラメータを計算本体
+		rms, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.fisheye.calibrate(self.objps, imgpoints, gray.shape[::-1], init_K, init_d, init_rvecs, init_tvecs, calibration_flags, self.criteria)
+
+		self.rvecs=np.float32(self.rvecs)
+		self.tvecs=np.float32(self.tvecs)
+		print("RMS = " + str(rms))
+		print("K = \n", self.mtx)
+		print("d = " + str(self.dist.ravel()))
+		print("rvec =" + str(self.rvecs))
+		print("tvec =" + str(self.tvecs))
+		#np.savetxt(self.k_filename, self.camera_mtx, delimiter=',', fmt="%0.5e")  # 半径方向の歪み係数の保存
+		#np.savetxt(self.d_filename, self.dist_coef, delimiter=',', fmt="%0.5e")  # 円周方向の歪み係数の保存
+
 	def camera(self):
-		#init
-		fx=1.14731e3
-		fy=1.14814e3
-		cx=9.68865e2	#pixel
-		cy=5.32106e2	#pixel
-		init_mtx = np.array([[fx, 0.0,cx], # カメラ行列
-						[0.0,fy, cy],
-						[0.0,0.0,1.0]])
-		init_dist = np.array([-3.84386e-01,2.00727e-01,7.27513e-04,3.32499e-04,-6.59210e-02])	#正式
 
 		gray = cv2.cvtColor(self.img, cv2.COLOR_RGB2GRAY)
 #		print(gray.shape[::-1])
@@ -859,7 +944,8 @@ class MainApplication(tk.Frame):
 #		self.mtx=np.insert(self.mtx,2,insert_m,axis=0)
 		imgpoints=self.kp_img
 		imgpoints=np.array([imgpoints],dtype="float32")
-		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],init_mtx,init_dist,flags=cv2.CALIB_USE_INTRINSIC_GUESS+cv2.CALIB_THIN_PRISM_MODEL+cv2.CALIB_RATIONAL_MODEL )
+		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],self.init_mtx,self.init_dist,flags=cv2.CALIB_USE_INTRINSIC_GUESS+cv2.CALIB_THIN_PRISM_MODEL+cv2.CALIB_RATIONAL_MODEL )
+#		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],self.init_mtx,self.init_dist,flags=cv2.CALIB_USE_INTRINSIC_GUESS)
 #		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],init_mtx,init_dist,flags=1)
 #		ret, self.mtx, self.dist, self.rvecs, self.tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],None,None)
 #		ret, self.mtx, self.dist, rvecs, tvecs = cv2.calibrateCamera(self.objps, imgpoints, gray.shape[::-1],None,None)
@@ -942,7 +1028,7 @@ class MainApplication(tk.Frame):
 		h,w = img.shape[:2]
 #		img = cv2.resize(img, dsize=(int(w/2),int(h/2)))
 		# ROI:Region Of Interest(対象領域)
-		newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, (w,h), 1, (w,h))
+		newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.init_mtx, self.init_dist, (w,h), 0, (w,h))
 #		newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx, dist, (w,h), 1, (w,h))
 		#newcameramtx, roi = cv2.getOptimalNewCameraMatrix(self.mtx, self.dist, (self.w,self.h), 0, (self.w,self.h))
 		print(self.mtx,self.dist)
@@ -950,6 +1036,7 @@ class MainApplication(tk.Frame):
     
 		# Method 1 to undistort the image
 #		cv2.undistort(img, dst, self.mtx, self.dist, newcameramtx)
+#		dst = cv2.undistort(img, self.init_mtx, self.init_dist, None, newcameramtx)
 		dst = cv2.undistort(img, self.mtx, self.dist, None, newcameramtx)
 		
 		#歪み補正した画像をimg_undistortフォルダへ保存
@@ -971,8 +1058,10 @@ class MainApplication(tk.Frame):
 #		print(self.kp_catalog,self.kp_img)
 			if self.kp_catalog.shape[0]>20:
 				#カメラの歪みを考慮したカタログ星の位置を示す
-				self.camera()
-				self.calc_catalog_point()
+				self.fish_camera()
+#				self.camera()
+#				self.calc_catalog_point()
+				self.fish_calc_catalog_point()
 
 #			self.mtx,inliers=cv2.estimateAffinePartial2D(self.kp_catalog_original,self.kp_img)
 #			mtx,inliers=cv2.estimateAffinePartial2D(self.kp_img,self.kp_catalog)
