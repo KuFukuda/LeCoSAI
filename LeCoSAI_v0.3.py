@@ -554,12 +554,12 @@ class MainApplication(tk.Frame):
 #		print(self.read_mtx)
 		self.dist=np.float32(content[3])
 #		print(self.read_dist)
-#		self.rvecs=np.float32(content[4])
+		self.rvecs=np.float32(content[4])
 #		print(self.read_rvecs)
-#		self.tvecs=np.float32(content[5])
+		self.tvecs=np.float32(content[5])
 #		print(self.read_tvecs)
-		self.rvecs = np.zeros((3, 1))
-		self.tvecs = np.zeros((3, 1))
+#		self.rvecs = np.zeros((3, 1))
+#		self.tvecs = np.zeros((3, 1))
 
 	def key_event(self,event):
 		self.key=event.keysym
@@ -654,14 +654,22 @@ class MainApplication(tk.Frame):
 	def fish_calc_catalog_point(self):
 		stars_catalog=self.stars_catalog_original.copy()
 		#stars_catalog=self.stars_catalog_original.copy()
-		stars_catalog=np.insert(stars_catalog, 2, 0.0, axis=1)
-		stars_catalog_m=np.array([stars_catalog],dtype="float32")
+#		stars_catalog=np.insert(stars_catalog, 2, 0.0, axis=1)
+#		stars_catalog_m=np.array([stars_catalog],dtype="float32")
 #		stars_catalog[:,0]=(stars_catalog[:,0]-self.mtx[0,2])/self.mtx[0,0]
 #		stars_catalog[:,1]=(stars_catalog[:,1]-self.mtx[1,2])/self.mtx[1,1]
-#		stars_catalog_m=np.zeros((stars_catalog.shape[0],3))
+		stars_catalog_m=np.zeros((stars_catalog.shape[0],3))
+		stars_catalog_m[:,0]=stars_catalog[:,0]
+		stars_catalog_m[:,1]=stars_catalog[:,1]
 #		stars_catalog_m[:,0]=(stars_catalog[:,0]-self.mtx[0,2])/self.mtx[0,0]
 #		stars_catalog_m[:,1]=(stars_catalog[:,1]-self.mtx[1,2])/self.mtx[1,1]
-#		stars_catalog_m=np.float32([stars_catalog_m])
+		stars_catalog_m=np.float32([stars_catalog_m])
+
+#		print("RMS = " + str(rms))
+		print("cK = \n", self.mtx)
+		print("cd = " + str(self.dist.ravel()))
+		print("crvec =" + str(self.rvecs))
+		print("ctvec =" + str(self.tvecs))
 
 		# project 3D points to image plane
 #		self.rvecs = np.zeros((3, 1))
@@ -908,7 +916,10 @@ class MainApplication(tk.Frame):
 
 		self.criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
-		calibration_flags = cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC + cv2.fisheye.CALIB_FIX_SKEW
+#		calibration_flags = cv2.fisheye.CALIB_FIX_SKEW
+		calibration_flags = cv2.fisheye.CALIB_FIX_SKEW + cv2.fisheye.CALIB_CHECK_COND
+#		calibration_flags = cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC + cv2.fisheye.CALIB_FIX_SKEW + cv2.fisheye.CALIB_CHECK_COND
+#		calibration_flags = cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC + cv2.fisheye.CALIB_FIX_SKEW
     
 #		init_K = np.zeros((3, 3))
 		init_K = np.float32([[1148.030453,0.0,968.5167184],
